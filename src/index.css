@@ -4,9 +4,9 @@
   --color-brand: #0E3A8C;
   --color-brand-red: #CC3333;
   --color-off-white: #f0f2f5;
-  
+
   --radius-bento: 50px;
-  
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -27,7 +27,7 @@
   .bento-card {
     @apply bg-white rounded-bento shadow-xl shadow-brand/5 border border-brand/5 p-8 transition-all duration-300;
   }
-  
+
   .btn-primary {
     @apply bg-brand text-white font-black py-4 px-8 rounded-full active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50;
   }

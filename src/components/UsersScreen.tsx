@@ -1,29 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { 
-  Users, 
-  GraduationCap, 
-  BookOpen, 
-  Search, 
+import {
+  Users,
+  GraduationCap,
+  BookOpen,
+  Search,
   Filter,
   MoreHorizontal,
   Mail,
   Shield,
   UserCircle,
+  User,
   Loader2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { useAuth } from '../contexts/AuthContext';
+import { UserSettingsModal } from './UserSettingsModal';
 
 export function UsersScreen() {
+  const { profile } = useAuth();
   const [filter, setFilter] = useState('Todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [counts, setCounts] = useState({
+  const [counts, setCounts] = useState<any>({
     students: 0,
     teachers: 0,
-    turmas: 0
+    turmas: 0,
+    Managers: 0,
+    Supervisors: 0,
+    uncategorized: 0,
+    Total: 0
   });
+
+
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   const filterOptions = [
     'Todos',
@@ -35,22 +47,22 @@ export function UsersScreen() {
   ];
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (profile?.fk_colegio) {
+      fetchData();
+    }
+  }, [profile]);
 
   const fetchData = async () => {
+    if (!profile?.fk_colegio) return;
+
     setLoading(true);
     try {
-      // Fetch counts
-      const { count: studentCount } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('tipousuario', 'Student');
-      const { count: teacherCount } = await supabase.from('users').select('*', { count: 'exact', head: true }).eq('tipousuario', 'Teacher');
-      const { count: turmasCount } = await supabase.from('turmas').select('*', { count: 'exact', head: true }).eq('ativo', true);
-
-      setCounts({
-        students: studentCount || 0,
-        teachers: teacherCount || 0,
-        turmas: turmasCount || 0
-      });
+      // Fetch turmas count separately
+      const { count: turmasCount } = await supabase
+        .from('turmas')
+        .select('*', { count: 'exact', head: true })
+        .eq('ativo', true)
+        .eq('fk_colegio', profile.fk_colegio);
 
       // Fetch users
       const { data: userData } = await supabase
@@ -60,14 +72,31 @@ export function UsersScreen() {
           nome, 
           email, 
           tipousuario, 
+          foto,
           created_at,
+          idbooks,
+          fk_turma,
           turmas:fk_turma (nome)
         `)
+        .eq('fk_colegio', profile.fk_colegio)
         .order('nome');
 
       if (userData) {
         setUsers(userData);
+
+        // Calculate category counts from fetched users
+        const newCounts: any = {
+          students: userData.filter(u => hasRole(u.tipousuario, 'Student')).length,
+          teachers: userData.filter(u => hasRole(u.tipousuario, 'Teacher')).length,
+          Managers: userData.filter(u => hasRole(u.tipousuario, 'Manager')).length,
+          Supervisors: userData.filter(u => hasRole(u.tipousuario, 'Supervisor')).length,
+          uncategorized: userData.filter(u => !u.tipousuario || (Array.isArray(u.tipousuario) && u.tipousuario.length === 0)).length,
+          Total: userData.length,
+          turmas: turmasCount || 0
+        };
+        setCounts(newCounts);
       }
+
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -75,89 +104,113 @@ export function UsersScreen() {
     }
   };
 
+  const hasRole = (tipousuario: any, targetRole: string) => {
+    if (!tipousuario) return false;
+    const roles = Array.isArray(tipousuario) ? tipousuario : [tipousuario];
+    return roles.some(r =>
+      typeof r === 'string' &&
+      (r === targetRole || r.split(',').map((s: string) => s.trim()).includes(targetRole))
+    );
+  };
+
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.nome.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         (user.email && user.email.toLowerCase().includes(searchQuery.toLowerCase()));
-    
+    const matchesSearch = (user.nome?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (user.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+
     if (filter === 'Todos') return matchesSearch;
-    if (filter === 'Alunos') return matchesSearch && user.tipousuario === 'Student';
-    if (filter === 'Professores') return matchesSearch && user.tipousuario === 'Teacher';
-    if (filter === 'Gerentes') return matchesSearch && user.tipousuario === 'Manager';
-    if (filter === 'Supervisores') return matchesSearch && user.tipousuario === 'Supervisor';
-    if (filter === 'Sem categoria') return matchesSearch && (!user.tipousuario || user.tipousuario === '');
-    
+    if (filter === 'Alunos') return matchesSearch && hasRole(user.tipousuario, 'Student');
+    if (filter === 'Professores') return matchesSearch && hasRole(user.tipousuario, 'Teacher');
+    if (filter === 'Gerentes') return matchesSearch && hasRole(user.tipousuario, 'Manager');
+    if (filter === 'Supervisores') return matchesSearch && hasRole(user.tipousuario, 'Supervisor');
+    if (filter === 'Sem categoria') return matchesSearch && (!user.tipousuario || (Array.isArray(user.tipousuario) && user.tipousuario.length === 0));
+
     return matchesSearch;
   });
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 mt-6">
       {/* Top Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard 
-          icon={Users} 
-          label="Alunos" 
-          value={counts.students} 
-          color="text-blue-500" 
+        <StatCard
+          icon={Users}
+          label="Alunos"
+          value={counts.students}
+          color="text-blue-500"
           bgColor="bg-blue-50"
         />
-        <StatCard 
-          icon={GraduationCap} 
-          label="Professores" 
-          value={counts.teachers} 
-          color="text-green-500" 
+        <StatCard
+          icon={GraduationCap}
+          label="Professores"
+          value={counts.teachers}
+          color="text-green-500"
           bgColor="bg-green-50"
         />
-        <StatCard 
-          icon={BookOpen} 
-          label="Turmas" 
-          value={counts.turmas} 
-          color="text-purple-500" 
+        <StatCard
+          icon={BookOpen}
+          label="Turmas"
+          value={counts.turmas}
+          color="text-purple-500"
           bgColor="bg-purple-50"
         />
       </div>
 
       {/* Users List Card */}
       <div className="bg-white rounded-[40px] shadow-2xl border border-white/50 overflow-hidden">
-        <div className="p-8 border-b border-gray-100">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="p-8 space-y-8 border-b border-gray-100">
+          <div className="flex items-center justify-between">
             <h3 className="text-2xl font-black text-[#0E3A8C] flex items-center gap-3">
               Gestão de Usuários
-              <span className="text-xs bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-bold">
-                {filteredUsers.length} total
-              </span>
             </h3>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input 
-                  type="text" 
-                  placeholder="Buscar por nome ou email..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-gray-50 border-none rounded-2xl py-3 pl-10 pr-6 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none w-full lg:w-64 transition-all"
-                />
-              </div>
-              
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 no-scrollbar">
-                {filterOptions.map((opt) => (
-                  <button
-                    key={opt}
-                    onClick={() => setFilter(opt)}
-                    className={cn(
-                      "whitespace-nowrap px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all",
-                      filter === opt 
-                        ? "bg-[#0E3A8C] text-white shadow-lg shadow-blue-900/20" 
-                        : "bg-gray-50 text-gray-400 hover:bg-gray-100"
-                    )}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
+          <div className="w-full">
+            <div className="relative">
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Buscar por nome ou email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-gray-50 border-none rounded-2xl py-4 pl-14 pr-6 text-sm font-bold text-gray-700 focus:ring-4 focus:ring-blue-100 outline-none w-full transition-all"
+              />
             </div>
+
+          </div>
+
+          <div className="flex items-center gap-3 overflow-x-auto pb-4 no-scrollbar max-w-full">
+            {filterOptions.map((opt) => {
+              const countKey = opt === 'Todos' ? 'Total' :
+                opt === 'Alunos' ? 'students' :
+                  opt === 'Professores' ? 'teachers' :
+                    opt === 'Gerentes' ? 'Managers' :
+                      opt === 'Supervisores' ? 'Supervisors' : 'uncategorized';
+              const count = counts[countKey];
+
+              return (
+                <button
+                  key={opt}
+                  onClick={() => setFilter(opt)}
+                  className={cn(
+                    "whitespace-nowrap px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all flex items-center gap-2",
+                    filter === opt
+                      ? "bg-[#0E3A8C] text-white shadow-xl shadow-blue-900/20"
+                      : "bg-gray-50 text-gray-400 hover:bg-gray-100"
+                  )}
+                >
+                  {opt}
+                  <span className={cn(
+                    "px-1.5 py-0.5 rounded-full text-[8px] font-black",
+                    filter === opt ? "bg-white/20 text-white" : "bg-gray-200 text-gray-500"
+                  )}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
+
+
 
         <div className="overflow-x-auto">
           {loading ? (
@@ -181,11 +234,15 @@ export function UsersScreen() {
                   <tr key={user.id} className="hover:bg-gray-50/30 transition-colors group">
                     <td className="p-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-[#0E3A8C] font-black shadow-sm">
-                          {user.nome.charAt(0)}
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-[#0E3A8C] font-black shadow-sm overflow-hidden text-sm uppercase">
+                          {user.foto ? (
+                            <img src={user.foto} alt={user.nome || 'Usuário'} className="w-full h-full object-cover" />
+                          ) : (
+                            (user.nome || 'U').charAt(0)
+                          )}
                         </div>
                         <div>
-                          <div className="font-black text-[#0E3A8C] text-sm">{user.nome}</div>
+                          <div className="font-black text-[#0E3A8C] text-sm">{user.nome || 'Sem Nome'}</div>
                           <div className="text-xs text-gray-400 font-bold flex items-center gap-1">
                             <Mail className="w-3 h-3" />
                             {user.email || 'Sem email'}
@@ -194,16 +251,26 @@ export function UsersScreen() {
                       </div>
                     </td>
                     <td className="p-6">
-                      <span className={cn(
-                        "px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider",
-                        user.tipousuario === 'Student' ? "bg-blue-50 text-blue-600" :
-                        user.tipousuario === 'Teacher' ? "bg-green-50 text-green-600" :
-                        user.tipousuario === 'Manager' ? "bg-purple-50 text-purple-600" :
-                        user.tipousuario === 'Supervisor' ? "bg-orange-50 text-orange-600" :
-                        "bg-gray-100 text-gray-500"
-                      )}>
-                        {user.tipousuario || 'Sem categoria'}
-                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {Array.isArray(user.tipousuario) && user.tipousuario.length > 0 ? (
+                          user.tipousuario.map((role: string) => (
+                            <span key={role} className={cn(
+                              "px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider whitespace-nowrap",
+                              role === 'Student' ? "bg-blue-50 text-blue-600" :
+                                role === 'Teacher' ? "bg-green-50 text-green-600" :
+                                  role === 'Manager' ? "bg-purple-50 text-purple-600" :
+                                    role === 'Supervisor' ? "bg-orange-50 text-orange-600" :
+                                      "bg-gray-100 text-gray-500"
+                            )}>
+                              {role}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-lg text-[8px] font-black uppercase tracking-wider">
+                            Sem categoria
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-6">
                       <div className="text-xs font-bold text-gray-500">
@@ -216,8 +283,19 @@ export function UsersScreen() {
                       </div>
                     </td>
                     <td className="p-6 text-right">
-                      <button className="p-2 hover:bg-white rounded-xl transition-all text-gray-300 hover:text-[#0E3A8C] shadow-sm">
-                        <MoreHorizontal className="w-5 h-5" />
+                      <button
+                        onClick={() => {
+                          setSelectedUser(user);
+                          setIsSettingsModalOpen(true);
+                        }}
+                        className="p-2 hover:bg-[#0E3A8C]/5 rounded-xl transition-all text-[#0E3A8C] flex items-center gap-2 font-black text-[10px] uppercase tracking-wider mx-auto lg:ml-auto"
+                      >
+                        {hasRole(user.tipousuario, 'Student') ? (
+                          <BookOpen className="w-4 h-4" />
+                        ) : (
+                          <User className="w-4 h-4" />
+                        )}
+                        Configurar
                       </button>
                     </td>
                   </tr>
@@ -233,6 +311,14 @@ export function UsersScreen() {
           )}
         </div>
       </div>
+
+      <UserSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        user={selectedUser}
+        fk_colegio={profile?.fk_colegio || null}
+        onSuccess={fetchData}
+      />
     </div>
   );
 }

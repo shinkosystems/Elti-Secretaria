@@ -1,13 +1,17 @@
 import React from 'react';
 import { cn } from '../lib/utils';
-import { 
-  TrendingUp, 
-  Users, 
-  Calendar, 
-  FileText, 
+import {
+  TrendingUp,
+  Users,
+  Calendar,
+  FileText,
   LogOut,
   X,
-  ChevronRight
+  ChevronRight,
+  Coins,
+  Package,
+  CreditCard,
+  BookOpen
 } from 'lucide-react';
 
 interface MobileSidebarProps {
@@ -18,17 +22,17 @@ interface MobileSidebarProps {
   onLogout: () => void;
 }
 
-export function MobileSidebar({ 
-  isOpen, 
-  onClose, 
-  activeScreen, 
-  setActiveScreen, 
-  onLogout 
+export function MobileSidebar({
+  isOpen,
+  onClose,
+  activeScreen,
+  setActiveScreen,
+  onLogout
 }: MobileSidebarProps) {
   return (
     <>
       {/* Overlay */}
-      <div 
+      <div
         className={cn(
           "fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] transition-opacity duration-500 lg:hidden",
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -50,7 +54,7 @@ export function MobileSidebar({
             <h1 className="text-3xl font-black text-white tracking-tighter leading-none">ELTI</h1>
             <span className="text-[8px] font-black text-brand-red uppercase tracking-[0.3em] mt-1">Secretaria</span>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white hover:bg-white/20 transition-all"
           >
@@ -60,35 +64,53 @@ export function MobileSidebar({
 
         {/* Navigation */}
         <nav className="flex-1 p-6 space-y-2 relative z-10">
-          <MobileNavItem 
-            icon={TrendingUp} 
-            label="Início" 
-            active={activeScreen === 'inicio'} 
+          <MobileNavItem
+            icon={TrendingUp}
+            label="Início"
+            active={activeScreen === 'inicio'}
             onClick={() => { setActiveScreen('inicio'); onClose(); }}
           />
-          <MobileNavItem 
-            icon={Users} 
-            label="Usuários" 
-            active={activeScreen === 'usuarios'} 
+          <MobileNavItem
+            icon={Users}
+            label="Usuários"
+            active={activeScreen === 'usuarios'}
             onClick={() => { setActiveScreen('usuarios'); onClose(); }}
           />
-          <MobileNavItem 
-            icon={Calendar} 
-            label="Horários" 
-            active={activeScreen === 'horarios'} 
+          <MobileNavItem
+            icon={Calendar}
+            label="Horários"
+            active={activeScreen === 'horarios'}
             onClick={() => { setActiveScreen('horarios'); onClose(); }}
           />
-          <MobileNavItem 
-            icon={FileText} 
-            label="Documentos" 
-            active={activeScreen === 'documentos'} 
-            onClick={() => { setActiveScreen('documentos'); onClose(); }}
+          <MobileNavItem
+            icon={BookOpen}
+            label="Turmas"
+            active={activeScreen === 'turmas'}
+            onClick={() => { setActiveScreen('turmas'); onClose(); }}
+          />
+          <MobileNavItem
+            icon={Coins}
+            label="ELTI Coins"
+            active={activeScreen === 'coins'}
+            onClick={() => { setActiveScreen('coins'); onClose(); }}
+          />
+          <MobileNavItem
+            icon={Package}
+            label="Materiais"
+            active={activeScreen === 'materiais'}
+            onClick={() => { setActiveScreen('materiais'); onClose(); }}
+          />
+          <MobileNavItem
+            icon={CreditCard}
+            label="Financeiro"
+            active={activeScreen === 'financeiro'}
+            onClick={() => { setActiveScreen('financeiro'); onClose(); }}
           />
         </nav>
 
         {/* Footer */}
         <div className="p-8 border-t border-white/10 relative z-10">
-          <button 
+          <button
             onClick={onLogout}
             className="flex items-center justify-between w-full p-4 bg-white/5 rounded-2xl text-white/60 font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/10 hover:text-white transition-all"
           >
@@ -106,12 +128,12 @@ export function MobileSidebar({
 
 function MobileNavItem({ icon: Icon, label, active, onClick }: { icon: any, label: string, active: boolean, onClick: () => void }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       className={cn(
         "flex items-center justify-between w-full p-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all",
-        active 
-          ? "bg-white text-[#0E3A8C] shadow-xl shadow-black/20" 
+        active
+          ? "bg-white text-[#0E3A8C] shadow-xl shadow-black/20"
           : "text-white/40 hover:text-white hover:bg-white/5"
       )}
     >

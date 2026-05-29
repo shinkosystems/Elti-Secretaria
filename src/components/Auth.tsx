@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  LogIn, 
-  UserPlus, 
-  Mail, 
-  Lock, 
-  ArrowRight, 
+import {
+  LogIn,
+  UserPlus,
+  Mail,
+  Lock,
+  ArrowRight,
   Loader2,
   AlertCircle,
   CheckCircle2
@@ -38,7 +38,7 @@ export function Auth({ onSuccess }: AuthProps) {
           email,
           password,
         });
-        
+
         if (authError) throw authError;
 
         if (authData.user) {
@@ -57,12 +57,20 @@ export function Auth({ onSuccess }: AuthProps) {
           }
 
           const allowedTypes = ['Manager', 'Secretary'];
-          if (!allowedTypes.includes(userData?.tipousuario)) {
+          const userRoles = Array.isArray(userData?.tipousuario)
+            ? userData.tipousuario
+            : userData?.tipousuario
+              ? [userData.tipousuario]
+              : [];
+
+          const hasAccess = userRoles.some(role => allowedTypes.includes(role));
+
+          if (!hasAccess) {
             await supabase.auth.signOut();
             throw new Error('Acesso negado. Apenas Gerentes e Secretários podem acessar este módulo.');
           }
         }
-        
+
         onSuccess();
       } else if (view === 'register') {
         if (password !== confirmPassword) {
@@ -93,12 +101,12 @@ export function Auth({ onSuccess }: AuthProps) {
   return (
     <div className="min-h-screen bg-[#f0f0f0] flex flex-col font-sans relative overflow-x-hidden">
       {/* Header Section */}
-      <div className="absolute top-0 left-0 right-0 h-[45vh] bg-[#0E3A8C] rounded-b-[60px] z-0 shadow-xl overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 h-[35vh] bg-[#0E3A8C] rounded-b-[60px] z-0 shadow-xl overflow-hidden">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #ffffff 2px, transparent 2.5px)', backgroundSize: '24px 24px' }}></div>
       </div>
 
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-12">
-        <motion.div 
+        <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           className="mb-10 flex flex-col items-center"
@@ -107,14 +115,14 @@ export function Auth({ onSuccess }: AuthProps) {
           <div className="bg-brand-red text-white text-xs font-black px-6 py-2 rounded-full mt-4 tracking-[0.4em] uppercase shadow-lg shadow-brand-red/20">
             Secretaria
           </div>
-          
+
           <p className="text-blue-100 font-bold mt-8 uppercase tracking-widest text-[10px] opacity-90">
             {view === 'login' ? 'Acesso Administrativo' : view === 'register' ? 'Criar Nova Conta' : 'Recuperar Senha'}
           </p>
         </motion.div>
 
         {/* Auth Card */}
-        <motion.div 
+        <motion.div
           initial={{ y: 40, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2 }}
@@ -139,7 +147,7 @@ export function Auth({ onSuccess }: AuthProps) {
           )}
 
           <form onSubmit={handleAuth} className="flex flex-col gap-4">
-            <input 
+            <input
               type="email"
               required
               value={email}
@@ -147,9 +155,9 @@ export function Auth({ onSuccess }: AuthProps) {
               className="w-full bg-[#F3F4F6] border-none rounded-3xl p-5 text-brand font-medium placeholder:text-brand/30 outline-none focus:ring-2 focus:ring-brand/10 transition-all"
               placeholder="Endereço de E-mail"
             />
-            
+
             {view !== 'forgotPassword' && (
-              <input 
+              <input
                 type="password"
                 required
                 value={password}
@@ -160,7 +168,7 @@ export function Auth({ onSuccess }: AuthProps) {
             )}
 
             {view === 'register' && (
-              <input 
+              <input
                 type="password"
                 required
                 value={confirmPassword}
@@ -172,7 +180,7 @@ export function Auth({ onSuccess }: AuthProps) {
 
             {view === 'login' && (
               <div className="flex justify-end px-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => { setView('forgotPassword'); setError(null); setMessage(null); }}
                   className="text-xs font-black text-[#0E3A8C] uppercase tracking-widest hover:underline"
@@ -182,8 +190,8 @@ export function Auth({ onSuccess }: AuthProps) {
               </div>
             )}
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={loading}
               className="w-full bg-brand-red text-white font-black py-5 rounded-3xl shadow-lg shadow-brand-red/20 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center mt-2"
             >
@@ -198,7 +206,7 @@ export function Auth({ onSuccess }: AuthProps) {
               <div className="h-px bg-gray-100 flex-1"></div>
             </div>
 
-            <button 
+            <button
               onClick={() => {
                 setView(view === 'login' ? 'register' : 'login');
                 setError(null);
