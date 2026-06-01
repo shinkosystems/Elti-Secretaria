@@ -44,8 +44,10 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
     const [schoolInfo, setSchoolInfo] = useState<SchoolInfo | null>(null);
     const [success, setSuccess] = useState(false);
 
+    const [books, setBooks] = useState<any[]>([]);
+    
     // Form Stats
-    const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
+    const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
     const [selectedStudentUuid, setSelectedStudentUuid] = useState<string | null>(null);
     const [addressType, setAddressType] = useState<'school' | 'home'>('school');
 
@@ -53,8 +55,22 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
         if (isOpen && profile?.fk_colegio) {
             fetchStudents();
             fetchSchoolInfo();
+            fetchBooks();
         }
     }, [isOpen, profile]);
+
+    const fetchBooks = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('books')
+                .select('*')
+                .order('nome');
+            if (error) throw error;
+            setBooks(data || []);
+        } catch (error) {
+            console.error('Error fetching books:', error);
+        }
+    };
 
     const fetchStudents = async () => {
         setFetchingStudents(true);
@@ -94,11 +110,21 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedMaterialId || !selectedStudentUuid || !profile) return;
+        if (!selectedItemId || !selectedStudentUuid || !profile) return;
 
         setLoading(true);
         try {
-            const material = materials.find(m => m.id === selectedMaterialId);
+            const isBook = selectedItemId.startsWith('b_');
+            const numericId = parseInt(selectedItemId.replace(/^(m_|b_)/, ''));
+            
+            let itemName = 'Material';
+            if (isBook) {
+                const book = books.find(b => b.id === numericId);
+                if (book) itemName = book.nome;
+            } else {
+                const material = materials.find(m => m.id === numericId);
+                if (material) itemName = material.nome;
+            }
 
             let deliveryAddress = '';
             if (addressType === 'school' && schoolInfo) {
@@ -112,8 +138,8 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
                 .insert([{
                     fk_colegio: profile.fk_colegio,
                     fk_usuario: selectedStudentUuid,
-                    fk_material: selectedMaterialId,
-                    item_nome: material?.nome || 'Material',
+                    fk_material: numericId,
+                    item_nome: itemName,
                     status: 'Pedido Feito',
                     endereco_entrega: deliveryAddress
                 }]);
@@ -136,7 +162,7 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
     };
 
     const resetForm = () => {
-        setSelectedMaterialId(null);
+        setSelectedItemId(null);
         setSelectedStudentUuid(null);
         setAddressType('school');
     };
@@ -156,10 +182,10 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
                         initial={{ scale: 0.95, opacity: 0, y: 20 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                        className="relative bg-white rounded-[40px] shadow-2xl w-full max-w-5xl overflow-hidden border border-white my-8"
+                        className="relative bg-white rounded-[40px] shadow-2xl w-full max-w-5xl border border-white my-8"
                     >
                         {/* Header */}
-                        <div className="p-10 bg-[#0E3A8C] text-white relative overflow-hidden rounded-b-[40px]">
+                        <div className="p-10 bg-[#0E3A8C] text-white relative overflow-hidden rounded-t-[40px] rounded-b-[40px]">
                             <div
                                 className="absolute inset-0 opacity-10"
                                 style={{
@@ -193,9 +219,12 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
                                     Material Didático
                                 </label>
                                 <SearchableSelect
-                                    options={materials.map(m => ({ id: m.id, label: m.nome }))}
-                                    value={selectedMaterialId || 0}
-                                    onChange={(id) => setSelectedMaterialId(id || null)}
+                                    options={[
+                                        ...materials.map(m => ({ id: `m_${m.id}`, label: m.nome, type: 'Material' })),
+                                        ...books.map(b => ({ id: `b_${b.id}`, label: b.nome, description: b.nivel, type: 'Livro' }))
+                                    ]}
+                                    value={selectedItemId || ''}
+                                    onChange={(id) => setSelectedItemId(id || null)}
                                     placeholder="Selecione o material..."
                                     className="w-full"
                                 />
@@ -325,7 +354,7 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={loading || !selectedMaterialId || !selectedStudentUuid || (addressType === 'home' && !selectedStudent?.logradouro)}
+                                    disabled={loading || !selectedItemId || !selectedStudentUuid || (addressType === 'home' && !selectedStudent?.logradouro)}
                                     className={cn(
                                         "flex-[1.5] py-5 rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95 disabled:grayscale disabled:opacity-50 disabled:cursor-not-allowed",
                                         success ? "bg-green-500 text-white shadow-green-200" : "bg-brand-red text-white shadow-brand-red/20"

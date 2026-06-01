@@ -43,7 +43,6 @@ export function MaterialsScreen() {
             const { data: materialsData } = await supabase
                 .from('materiais')
                 .select('*')
-                .eq('fk_colegio', profile?.fk_colegio)
                 .order('nome');
             if (materialsData) setMaterials(materialsData);
 
@@ -95,7 +94,7 @@ export function MaterialsScreen() {
     const handleUpdateStatus = async (orderId: number, newStatus: string) => {
         try {
             const updates: any = { status: newStatus };
-            if (newStatus === 'Entregue') {
+            if (newStatus === 'Entregue' || newStatus === 'Entregue ao Aluno') {
                 updates.data_entrega = new Date().toISOString();
             }
 
@@ -134,23 +133,23 @@ export function MaterialsScreen() {
                 <StatCard
                     icon={Clock}
                     label="Em Processamento"
-                    value={orders.filter(o => o.status === 'Em Processamento').length.toString()}
+                    value={orders.filter(o => o.status === 'Em Processamento' || o.status === 'Enviado para Unidade').length.toString()}
                     color="text-blue-500"
                     bgColor="bg-blue-50"
                 />
                 <StatCard
-                    icon={CheckCircle}
-                    label="Total Entregue"
-                    value={orders.filter(o => o.status === 'Entregue').length.toString()}
-                    color="text-green-500"
-                    bgColor="bg-green-50"
+                    icon={Package}
+                    label="Aguardando Aluno"
+                    value={orders.filter(o => o.status === 'Recebido na Unidade').length.toString()}
+                    color="text-purple-500"
+                    bgColor="bg-purple-50"
                 />
                 <StatCard
-                    icon={AlertCircle}
-                    label="Negados"
-                    value={orders.filter(o => o.status === 'Negado').length.toString()}
-                    color="text-red-500"
-                    bgColor="bg-red-50"
+                    icon={CheckCircle}
+                    label="Total Entregue"
+                    value={orders.filter(o => o.status === 'Entregue' || o.status === 'Entregue ao Aluno').length.toString()}
+                    color="text-green-500"
+                    bgColor="bg-green-50"
                 />
             </div>
 
@@ -216,7 +215,7 @@ export function MaterialsScreen() {
                     ) : activeTab === 'orders' ? (
                         <OrdersTable orders={filteredOrders} onUpdateStatus={handleUpdateStatus} />
                     ) : (
-                        <MaterialsTable materials={filteredMaterials} onDelete={fetchData} />
+                        <MaterialsTable materials={filteredMaterials} />
                     )}
                 </div>
             </div>
@@ -261,6 +260,11 @@ function OrdersTable({ orders, onUpdateStatus }: { orders: any[], onUpdateStatus
                 return "bg-yellow-50 text-yellow-600 border border-yellow-100";
             case 'Em Processamento':
                 return "bg-blue-50 text-blue-600 border border-blue-100";
+            case 'Enviado para Unidade':
+                return "bg-indigo-50 text-indigo-600 border border-indigo-100";
+            case 'Recebido na Unidade':
+                return "bg-purple-50 text-purple-600 border border-purple-100";
+            case 'Entregue ao Aluno':
             case 'Entregue':
                 return "bg-green-50 text-green-600 border border-green-100";
             case 'Negado':
@@ -274,6 +278,9 @@ function OrdersTable({ orders, onUpdateStatus }: { orders: any[], onUpdateStatus
         switch (status) {
             case 'Pedido Feito': return "bg-yellow-500 animate-pulse";
             case 'Em Processamento': return "bg-blue-500";
+            case 'Enviado para Unidade': return "bg-indigo-500";
+            case 'Recebido na Unidade': return "bg-purple-500";
+            case 'Entregue ao Aluno':
             case 'Entregue': return "bg-green-500";
             case 'Negado': return "bg-red-500";
             default: return "bg-gray-500";
@@ -330,39 +337,28 @@ function OrdersTable({ orders, onUpdateStatus }: { orders: any[], onUpdateStatus
                             <td className="px-10 py-8">
                                 <div className="flex flex-col">
                                     <span className="text-xs font-black text-gray-400 uppercase tracking-widest italic">{new Date(order.data_pedido).toLocaleDateString('pt-BR')}</span>
-                                    {order.status === 'Entregue' && order.data_entrega && (
+                                    {(order.status === 'Entregue' || order.status === 'Entregue ao Aluno') && order.data_entrega && (
                                         <span className="text-[9px] text-green-500 font-black uppercase tracking-widest mt-1 italic">Entregue em: {new Date(order.data_entrega).toLocaleDateString('pt-BR')}</span>
                                     )}
                                 </div>
                             </td>
                             <td className="px-10 py-8 text-right">
                                 <div className="flex items-center justify-end gap-2 transition-opacity duration-300">
-                                    {order.status === 'Pedido Feito' && (
+                                    {order.status === 'Enviado para Unidade' && (
                                         <button
-                                            onClick={() => onUpdateStatus(order.id, 'Em Processamento')}
-                                            className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 transition-all active:scale-95 shadow-sm"
-                                            title="Mover para Processamento"
+                                            onClick={() => onUpdateStatus(order.id, 'Recebido na Unidade')}
+                                            className="px-4 py-2 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-all active:scale-95 shadow-sm font-bold text-[10px] uppercase tracking-wider"
                                         >
-                                            <Clock className="w-4 h-4" />
+                                            Confirmar Recebimento
                                         </button>
                                     )}
-                                    {(order.status === 'Pedido Feito' || order.status === 'Em Processamento') && (
-                                        <>
-                                            <button
-                                                onClick={() => onUpdateStatus(order.id, 'Entregue')}
-                                                className="p-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-all active:scale-95 shadow-sm"
-                                                title="Marcar como Entregue"
-                                            >
-                                                <CheckCircle className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => onUpdateStatus(order.id, 'Negado')}
-                                                className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all active:scale-95 shadow-sm"
-                                                title="Negar Pedido"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </>
+                                    {order.status === 'Recebido na Unidade' && (
+                                        <button
+                                            onClick={() => onUpdateStatus(order.id, 'Entregue ao Aluno')}
+                                            className="px-4 py-2 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition-all active:scale-95 shadow-sm font-bold text-[10px] uppercase tracking-wider"
+                                        >
+                                            Entregar ao Aluno
+                                        </button>
                                     )}
                                 </div>
                             </td>
@@ -374,7 +370,7 @@ function OrdersTable({ orders, onUpdateStatus }: { orders: any[], onUpdateStatus
     );
 }
 
-function MaterialsTable({ materials, onDelete }: { materials: any[], onDelete: () => void }) {
+function MaterialsTable({ materials }: { materials: any[] }) {
     if (materials.length === 0) {
         return (
             <div className="py-24 flex flex-col items-center justify-center text-gray-300">
@@ -384,52 +380,33 @@ function MaterialsTable({ materials, onDelete }: { materials: any[], onDelete: (
         );
     }
 
-    const handleDelete = async (id: number) => {
-        if (!confirm('Deseja realmente excluir este material?')) return;
-        try {
-            await supabase.from('materiais').delete().eq('id', id);
-            onDelete();
-        } catch (error) {
-            console.error('Error deleting material:', error);
-        }
-    };
-
     return (
-        <div className="overflow-x-auto">
-            <table className="w-full text-left">
-                <thead>
-                    <tr className="bg-[#F9FAFB]">
-                        <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Material</th>
-                        <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Data de Cadastro</th>
-                        <th className="px-10 py-6 text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 text-right">Ações</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                    {materials.map((material) => (
-                        <tr key={material.id} className="hover:bg-[#F3F4F6]/30 transition-all group">
-                            <td className="px-10 py-8">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-[20px] bg-[#0E3A8C]/5 flex items-center justify-center">
-                                        <Package className="w-6 h-6 text-[#0E3A8C]" />
-                                    </div>
-                                    <span className="font-black text-[#0E3A8C] text-lg tracking-tight uppercase">{material.nome}</span>
-                                </div>
-                            </td>
-                            <td className="px-10 py-8 text-gray-400 font-bold uppercase text-[10px] tracking-widest italic font-sans italic">
-                                {new Date(material.created_at).toLocaleDateString('pt-BR')}
-                            </td>
-                            <td className="px-10 py-8 text-right">
-                                <button
-                                    onClick={() => handleDelete(material.id)}
-                                    className="p-3 text-red-100 hover:text-red-500 bg-red-500/5 hover:bg-red-500/10 rounded-2xl transition-all opacity-0 group-hover:opacity-100 duration-300"
-                                >
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
+        <div className="p-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            {materials.map((material) => (
+                <div key={material.id} className="bg-white rounded-[32px] overflow-hidden shadow-xl border border-gray-100 flex flex-col group hover:-translate-y-2 hover:shadow-2xl transition-all duration-300">
+                    <div className="aspect-square bg-gray-50 relative overflow-hidden flex items-center justify-center">
+                        {material.imagem ? (
+                            <img 
+                                src={material.imagem} 
+                                alt={material.nome}
+                                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                            />
+                        ) : (
+                            <Package className="w-20 h-20 text-gray-200" />
+                        )}
+                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-2xl shadow-lg border border-white">
+                            <span className="font-black text-[#0E3A8C] text-sm tracking-tight">
+                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(material.valor / 100)}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="p-8 bg-white border-t border-gray-50 flex flex-col items-center justify-center text-center">
+                        <h3 className="font-black text-[#0E3A8C] text-lg tracking-tight uppercase line-clamp-2">
+                            {material.nome}
+                        </h3>
+                    </div>
+                </div>
+            ))}
         </div>
     );
 }
@@ -445,7 +422,7 @@ function RegisterMaterialModal({ isOpen, onClose, onSuccess }: any) {
         try {
             const { error } = await supabase
                 .from('materiais')
-                .insert([{ nome, fk_colegio: profile?.fk_colegio }]);
+                .insert([{ nome, valor: 0 }]);
 
             if (error) throw error;
             onSuccess();
