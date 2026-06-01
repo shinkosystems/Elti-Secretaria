@@ -25,6 +25,8 @@ export function RegistrationModal({ isOpen, onClose, fk_colegio }: RegistrationM
     const [uf, setUf] = useState('');
     const [numero, setNumero] = useState('');
     const [complemento, setComplemento] = useState('');
+    const [responsavelFinanceiro, setResponsavelFinanceiro] = useState('');
+    const [cpfResponsavelFinanceiro, setCpfResponsavelFinanceiro] = useState('');
 
     const [loading, setLoading] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
@@ -108,6 +110,8 @@ export function RegistrationModal({ isOpen, onClose, fk_colegio }: RegistrationM
                     uf,
                     numero,
                     complemento,
+                    responsavel_financeiro: responsavelFinanceiro || null,
+                    cpf_responsavel_financeiro: cpfResponsavelFinanceiro || null,
                     coins: 0,
                     criado_secretaria: true,
                     senha_alterada: false
@@ -133,6 +137,8 @@ export function RegistrationModal({ isOpen, onClose, fk_colegio }: RegistrationM
                 setUf('');
                 setNumero('');
                 setComplemento('');
+                setResponsavelFinanceiro('');
+                setCpfResponsavelFinanceiro('');
                 setSuccess(false);
                 onClose();
             }, 2000);
@@ -263,6 +269,32 @@ export function RegistrationModal({ isOpen, onClose, fk_colegio }: RegistrationM
                                                     value={email}
                                                     onChange={(e) => setEmail(e.target.value)}
                                                     className="w-full bg-white border-2 border-transparent shadow-sm rounded-[24px] py-5 pl-14 pr-8 font-black text-[#0E3A8C] outline-none focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all text-sm placeholder:text-gray-300 placeholder:font-bold"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Responsável Financeiro</label>
+                                                <div className="relative group">
+                                                    <User className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 transition-colors group-focus-within:text-[#0E3A8C]" />
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Opcional"
+                                                        value={responsavelFinanceiro}
+                                                        onChange={(e) => setResponsavelFinanceiro(e.target.value)}
+                                                        className="w-full bg-white border-2 border-transparent shadow-sm rounded-[24px] py-5 pl-14 pr-8 font-black text-[#0E3A8C] outline-none focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all text-sm placeholder:text-gray-300 placeholder:font-bold"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">CPF do Resp. Financeiro</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Opcional"
+                                                    value={cpfResponsavelFinanceiro}
+                                                    onChange={(e) => setCpfResponsavelFinanceiro(e.target.value)}
+                                                    className="w-full bg-white border-2 border-transparent shadow-sm rounded-[24px] py-5 px-8 font-black text-[#0E3A8C] outline-none focus:border-blue-100 focus:ring-4 focus:ring-blue-50/50 transition-all text-sm placeholder:text-gray-300 placeholder:font-bold"
                                                 />
                                             </div>
                                         </div>

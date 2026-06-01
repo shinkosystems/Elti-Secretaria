@@ -164,7 +164,7 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 }
 
                 const { data: turmasExistentes, error: turmasError } = await query;
-                
+
                 if (turmasError) throw turmasError;
 
                 if (turmasExistentes && turmasExistentes.length > 0) {

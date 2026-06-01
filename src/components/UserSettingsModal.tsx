@@ -83,6 +83,8 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
         email: '',
         telefone: '',
         cpf: '',
+        responsavel_financeiro: '',
+        cpf_responsavel_financeiro: '',
         nascimento: '',
         genero: '',
         cep: '',
@@ -122,6 +124,8 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
                     email: data.email || '',
                     telefone: data.telefone || '',
                     cpf: data.cpf || '',
+                    responsavel_financeiro: data.responsavel_financeiro || '',
+                    cpf_responsavel_financeiro: data.cpf_responsavel_financeiro || '',
                     nascimento: data.nascimento || '',
                     genero: data.genero || '',
                     cep: data.cep || '',
@@ -514,6 +518,29 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
                                                             type="text"
                                                             value={formData.cpf}
                                                             onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                                                            placeholder="000.000.000-00"
+                                                            className="w-full bg-white border-2 border-transparent hover:border-blue-50/50 shadow-sm rounded-[24px] p-6 font-black text-[#0E3A8C] outline-none focus:border-[#0E3A8C] focus:ring-4 focus:ring-blue-50/50 transition-all text-sm tracking-tight placeholder:text-gray-300"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-6 mt-6">
+                                                    <div className="space-y-3">
+                                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Responsável Financeiro</label>
+                                                        <input
+                                                            type="text"
+                                                            value={formData.responsavel_financeiro}
+                                                            onChange={(e) => setFormData({ ...formData, responsavel_financeiro: e.target.value })}
+                                                            placeholder="Nome do responsável"
+                                                            className="w-full bg-white border-2 border-transparent hover:border-blue-50/50 shadow-sm rounded-[24px] p-6 font-black text-[#0E3A8C] outline-none focus:border-[#0E3A8C] focus:ring-4 focus:ring-blue-50/50 transition-all text-sm tracking-tight placeholder:text-gray-300"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">CPF do Resp. Financeiro</label>
+                                                        <input
+                                                            type="text"
+                                                            value={formData.cpf_responsavel_financeiro}
+                                                            onChange={(e) => setFormData({ ...formData, cpf_responsavel_financeiro: e.target.value })}
                                                             placeholder="000.000.000-00"
                                                             className="w-full bg-white border-2 border-transparent hover:border-blue-50/50 shadow-sm rounded-[24px] p-6 font-black text-[#0E3A8C] outline-none focus:border-[#0E3A8C] focus:ring-4 focus:ring-blue-50/50 transition-all text-sm tracking-tight placeholder:text-gray-300"
                                                         />
