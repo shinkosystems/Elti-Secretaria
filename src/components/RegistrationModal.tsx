@@ -11,8 +11,8 @@ interface RegistrationModalProps {
     fk_colegio: number | null;
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder';
 
 export function RegistrationModal({ isOpen, onClose, fk_colegio }: RegistrationModalProps) {
     const [firstName, setFirstName] = useState('');
