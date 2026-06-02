@@ -15,11 +15,13 @@ import {
     Loader2,
     Plus,
     ChevronRight,
-    SearchIcon
+    SearchIcon,
+    History
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { AddTurmaModal } from './AddTurmaModal';
+import { TurmaHistoryModal } from './TurmaHistoryModal';
 
 const DAY_MAP: { [key: string]: string } = {
     'Monday': 'Seg',
@@ -48,6 +50,7 @@ export function TurmasScreen() {
 
     const [selectedTurma, setSelectedTurma] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
     useEffect(() => {
         if (profile?.fk_colegio) {
@@ -338,16 +341,29 @@ export function TurmasScreen() {
                                             )}
                                         </td>
                                         <td className="p-6 text-right">
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedTurma(turma);
-                                                    setIsModalOpen(true);
-                                                }}
-                                                className="p-2 hover:bg-[#0E3A8C]/5 rounded-xl transition-all text-[#0E3A8C] flex items-center gap-2 font-black text-[10px] uppercase tracking-wider mx-auto lg:ml-auto"
-                                            >
-                                                <ChevronRight className="w-4 h-4" />
-                                                Configurar
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedTurma(turma);
+                                                        setIsHistoryModalOpen(true);
+                                                    }}
+                                                    className="p-2 hover:bg-[#0E3A8C]/5 rounded-xl transition-all text-[#0E3A8C] flex items-center gap-2 font-black text-[10px] uppercase tracking-wider mx-1"
+                                                    title="Histórico"
+                                                >
+                                                    <History className="w-4 h-4" />
+                                                    Hist.
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedTurma(turma);
+                                                        setIsModalOpen(true);
+                                                    }}
+                                                    className="p-2 hover:bg-[#0E3A8C]/5 rounded-xl transition-all text-[#0E3A8C] flex items-center gap-2 font-black text-[10px] uppercase tracking-wider"
+                                                >
+                                                    <ChevronRight className="w-4 h-4" />
+                                                    Configurar
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -369,6 +385,13 @@ export function TurmasScreen() {
                 turma={selectedTurma}
                 fk_colegio={profile?.fk_colegio}
                 onSuccess={fetchData}
+            />
+
+            <TurmaHistoryModal
+                isOpen={isHistoryModalOpen}
+                onClose={() => setIsHistoryModalOpen(false)}
+                turma={selectedTurma}
+                fk_colegio={profile?.fk_colegio}
             />
         </div>
     );

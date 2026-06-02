@@ -104,6 +104,31 @@ export function MaterialsScreen() {
                 .eq('id', orderId);
 
             if (error) throw error;
+
+            // Logic to grant ELTI Plus access based on material name
+            if (newStatus === 'Entregue' || newStatus === 'Entregue ao Aluno') {
+                const order = orders.find(o => o.id === orderId);
+                if (order && order.item_nome && order.fk_usuario) {
+                    let mappedId = null;
+                    const itemName = order.item_nome.toLowerCase();
+                    if (itemName.includes('freshman')) mappedId = 1;
+                    else if (itemName.includes('sophomore')) mappedId = 2;
+                    else if (itemName.includes('junior')) mappedId = 3;
+                    else if (itemName.includes('senior')) mappedId = 4;
+
+                    if (mappedId !== null) {
+                        const { error: userError } = await supabase
+                            .from('users')
+                            .update({ idbooks: mappedId })
+                            .eq('uuid', order.fk_usuario);
+                        
+                        if (userError) {
+                            console.error('Error updating user idbooks:', userError);
+                        }
+                    }
+                }
+            }
+
             fetchData();
         } catch (error) {
             console.error('Error updating order status:', error);
