@@ -450,7 +450,7 @@ export function EltiCoinsScreen() {
                                                         className="bg-[#0E3A8C] text-white px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-wider hover:bg-[#0a2b66] transition-all shadow-lg shadow-blue-900/20 active:scale-95 flex items-center gap-2 ml-auto"
                                                     >
                                                         <ArrowDownCircle className="w-3 h-3" />
-                                                        Remover
+                                                        Subtrair
                                                     </button>
                                                 </td>
                                             </tr>
@@ -579,7 +579,7 @@ export function EltiCoinsScreen() {
                                         <History className="w-8 h-8 text-white" />
                                     </div>
                                     <div>
-                                        <h3 className="text-3xl font-black tracking-tight leading-none mb-2">Remover Coins</h3>
+                                        <h3 className="text-3xl font-black tracking-tight leading-none mb-2">Subtrair Coins</h3>
                                         <p className="text-red-100/60 font-black text-[10px] uppercase tracking-[0.3em]">Ambiente de Gestão ELTI</p>
                                     </div>
                                 </div>
@@ -613,7 +613,7 @@ export function EltiCoinsScreen() {
                                                     }}
                                                     className="w-5 h-5 text-red-600 focus:ring-red-500 border-gray-100"
                                                 />
-                                                <span className="font-black text-sm text-[#0E3A8C] group-has-[:checked]:text-red-700">Nenhum produto (Remoção Manual)</span>
+                                                <span className="font-black text-sm text-[#0E3A8C] group-has-[:checked]:text-red-700">Nenhum produto (Subtração Manual)</span>
                                             </label>
                                             {products.filter(p => p.estoque > 0).map(product => (
                                                 <label key={product.id} className="flex items-center gap-4 p-5 rounded-[24px] bg-white border-2 border-transparent cursor-pointer transition-all hover:bg-red-50/30 has-[:checked]:border-red-500 has-[:checked]:bg-red-50 has-[:checked]:shadow-xl has-[:checked]:shadow-red-900/5 shadow-sm group">
@@ -671,7 +671,7 @@ export function EltiCoinsScreen() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Justificativa da Remoção</label>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Justificativa da Subtração</label>
                                     <textarea
                                         required
                                         placeholder="Ex: Aluno realizou uma compra física no balcão."
@@ -698,7 +698,7 @@ export function EltiCoinsScreen() {
                                         {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : (
                                             <>
                                                 <CheckCircle className="w-5 h-5" />
-                                                Confirmar Remoção
+                                                Confirmar Subtração
                                             </>
                                         )}
                                     </button>
@@ -947,7 +947,7 @@ export function EltiCoinsScreen() {
                                                     }}
                                                     className="flex-1 bg-red-500 text-white py-5 rounded-[20px] hover:bg-red-600 transition-all shadow-xl shadow-red-500/20 active:scale-95 flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest"
                                                 >
-                                                    <X className="w-5 h-5" /> Remover
+                                                    <X className="w-5 h-5" /> Subtrair
                                                 </button>
                                             </div>
                                         </div>
@@ -1065,7 +1065,7 @@ export function EltiCoinsScreen() {
                                                                 Troca: {item.nome_produto}
                                                             </span>
                                                         ) : (
-                                                            "Remoção Manual"
+                                                            "Subtração Manual"
                                                         )}
                                                     </div>
                                                     {item.justificativa && (
