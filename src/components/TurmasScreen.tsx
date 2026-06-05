@@ -143,6 +143,45 @@ export function TurmasScreen() {
         }
     };
 
+    const renderSchedule = (turma: any) => {
+        const dias = Array.isArray(turma.dias_semana) ? turma.dias_semana : [];
+        if (dias.length === 0) return <span className="text-gray-400">Não definido</span>;
+
+        if (!turma.horarios || Object.keys(turma.horarios).length === 0) {
+            // Legacy fallback
+            return (
+                <div className="flex flex-col gap-1">
+                    <span className="font-bold text-[#0E3A8C]">{dias.map((d: string) => dayMapping[d] || d).join(', ')}</span>
+                    <span className="text-gray-400 text-[10px] uppercase tracking-wider">
+                        {turma.horario_inicio?.slice(0, 5)} - {turma.horario_fim?.slice(0, 5)}
+                    </span>
+                </div>
+            );
+        }
+
+        // Agrupar dias que possuem o mesmo horário
+        const groups: { [timeRange: string]: string[] } = {};
+        dias.forEach((d: string) => {
+            const h = turma.horarios[d];
+            if (h && h.inicio && h.fim) {
+                const range = `${h.inicio.slice(0, 5)} - ${h.fim.slice(0, 5)}`;
+                if (!groups[range]) groups[range] = [];
+                groups[range].push(dayMapping[d] || d);
+            }
+        });
+
+        return (
+            <div className="flex flex-col gap-1">
+                {Object.entries(groups).map(([range, days], idx) => (
+                    <div key={idx} className="flex flex-col">
+                        <span className="font-bold text-[#0E3A8C] text-xs">{days.join(', ')}</span>
+                        <span className="text-gray-400 text-[10px] uppercase tracking-wider">{range}</span>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     const filteredTurmas = turmas.filter(turma => {
         const query = searchQuery.toLowerCase();
         const profName = turma.professor?.nome || professors.find(p => p.uuid === turma.professor_uuid)?.nome || '';

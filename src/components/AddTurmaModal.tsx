@@ -34,8 +34,7 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
     const [professor_uuid, setProfessorUuid] = useState<string | null>(null);
     const [sala, setSala] = useState('');
     const [selectedDays, setSelectedDays] = useState<string[]>([]);
-    const [horario_inicio, setHorarioInicio] = useState('');
-    const [horario_fim, setHorarioFim] = useState('');
+    const [horarios, setHorarios] = useState<{ [key: string]: { inicio: string, fim: string } }>({});
     const [data_inicio, setDataInicio] = useState('');
     const [data_fim, setDataFim] = useState('');
     const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
@@ -57,8 +56,19 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 setProfessorUuid(turma.professor_uuid || null);
                 setSala(turma.sala || '');
                 setSelectedDays(Array.isArray(turma.dias_semana) ? turma.dias_semana : []);
-                setHorarioInicio(turma.horario_inicio || '');
-                setHorarioFim(turma.horario_fim || '');
+                
+                // If turma has horarios JSON, use it. Otherwise, build it from the old fields for backwards compatibility
+                if (turma.horarios && Object.keys(turma.horarios).length > 0) {
+                    setHorarios(turma.horarios);
+                } else if (turma.horario_inicio && turma.horario_fim) {
+                    const fallback: any = {};
+                    (turma.dias_semana || []).forEach((d: string) => {
+                        fallback[d] = { inicio: turma.horario_inicio, fim: turma.horario_fim };
+                    });
+                    setHorarios(fallback);
+                } else {
+                    setHorarios({});
+                }
                 setDataInicio(turma.data_inicio || '');
                 setDataFim(turma.data_fim || '');
                 setSelectedStudents(turma.alunos_uuids || []);
@@ -69,8 +79,7 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 setProfessorUuid(null);
                 setSala('');
                 setSelectedDays([]);
-                setHorarioInicio('');
-                setHorarioFim('');
+                setHorarios({});
                 setDataInicio('');
                 setDataFim('');
                 setSelectedStudents([]);
@@ -127,9 +136,29 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
     };
 
     const handleDayToggle = (dayId: string) => {
-        setSelectedDays(prev =>
-            prev.includes(dayId) ? prev.filter(d => d !== dayId) : [...prev, dayId]
-        );
+        setSelectedDays(prev => {
+            if (prev.includes(dayId)) {
+                return prev.filter(d => d !== dayId);
+            } else {
+                // Ao adicionar um novo dia, inicializa com vazio ou copia do último dia adicionado
+                setHorarios(h => {
+                    const lastDay = prev[prev.length - 1];
+                    const defaultTime = lastDay && h[lastDay] ? { ...h[lastDay] } : { inicio: '', fim: '' };
+                    return { ...h, [dayId]: defaultTime };
+                });
+                return [...prev, dayId];
+            }
+        });
+    };
+
+    const handleHorarioChange = (dayId: string, field: 'inicio' | 'fim', value: string) => {
+        setHorarios(prev => ({
+            ...prev,
+            [dayId]: {
+                ...(prev[dayId] || { inicio: '', fim: '' }),
+                [field]: value
+            }
+        }));
     };
 
     const handleStudentToggle = (uuid: string) => {
@@ -148,12 +177,14 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
         setLoading(true);
         try {
             // Verificações de conflito de horário/sala
-            // Só faz a verificação se houver dias e horários definidos
-            if (selectedDays.length > 0 && horario_inicio && horario_fim) {
+            // Só faz a verificação se houver dias definidos e com horários preenchidos
+            const daysWithTimes = selectedDays.filter(d => horarios[d]?.inicio && horarios[d]?.fim);
+            
+            if (daysWithTimes.length > 0) {
                 // Busca outras turmas do mesmo colégio que estão ativas e têm o mesmo professor ou sala
                 let query = supabase
                     .from('turmas')
-                    .select('id, nome, professor_uuid, sala, dias_semana, horario_inicio, horario_fim, data_inicio, data_fim')
+                    .select('id, nome, professor_uuid, sala, dias_semana, horarios, horario_inicio, horario_fim, data_inicio, data_fim')
                     .eq('fk_colegio', fk_colegio)
                     .eq('ativo', true);
 
@@ -164,7 +195,7 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 }
 
                 const { data: turmasExistentes, error: turmasError } = await query;
-
+                
                 if (turmasError) throw turmasError;
 
                 if (turmasExistentes && turmasExistentes.length > 0) {
@@ -189,22 +220,32 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                         if (!dateOverlap) continue;
 
                         // 2. Verifica sobreposição de dias da semana
-                        const sharedDays = selectedDays.filter(day => (t.dias_semana || []).includes(day));
+                        const sharedDays = daysWithTimes.filter(day => (t.dias_semana || []).includes(day));
                         if (sharedDays.length === 0) continue;
 
-                        // 3. Verifica sobreposição de horário
-                        if (t.horario_inicio && t.horario_fim) {
-                            if (t.horario_inicio < horario_fim && t.horario_fim > horario_inicio) {
-                                // Conflito detectado!
-                                if (t.professor_uuid === professor_uuid) {
-                                    alert(`Conflito de Professor: O professor já possui a turma "${t.nome}" neste mesmo horário e período.`);
-                                    setLoading(false);
-                                    return;
-                                }
-                                if (sala && t.sala === sala) {
-                                    alert(`Conflito de Sala: A sala "${sala}" já está sendo usada pela turma "${t.nome}" neste mesmo horário e período.`);
-                                    setLoading(false);
-                                    return;
+                        // 3. Verifica sobreposição de horário dia a dia
+                        for (const sharedDay of sharedDays) {
+                            const myStart = horarios[sharedDay].inicio;
+                            const myEnd = horarios[sharedDay].fim;
+                            
+                            // Tenta pegar o horário da turma existente (prefere o JSONB horarios, se não tiver cai pro legado)
+                            let tStart = t.horarios?.[sharedDay]?.inicio || t.horario_inicio;
+                            let tEnd = t.horarios?.[sharedDay]?.fim || t.horario_fim;
+
+                            if (tStart && tEnd && myStart && myEnd) {
+                                if (tStart < myEnd && tEnd > myStart) {
+                                    // Conflito detectado!
+                                    const dayName = DAYS_OF_WEEK.find(d => d.id === sharedDay)?.label || sharedDay;
+                                    if (t.professor_uuid === professor_uuid) {
+                                        alert(`Conflito de Professor: O professor já possui a turma "${t.nome}" neste mesmo horário e período (${dayName} ${tStart}-${tEnd}).`);
+                                        setLoading(false);
+                                        return;
+                                    }
+                                    if (sala && t.sala === sala) {
+                                        alert(`Conflito de Sala: A sala "${sala}" já está sendo usada pela turma "${t.nome}" neste mesmo horário e período (${dayName} ${tStart}-${tEnd}).`);
+                                        setLoading(false);
+                                        return;
+                                    }
                                 }
                             }
                         }
@@ -219,8 +260,10 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 professor_uuid,
                 sala,
                 dias_semana: selectedDays,
-                horario_inicio,
-                horario_fim,
+                horarios: horarios,
+                // Mantemos o primeiro horário para compatibilidade legada se necessário
+                horario_inicio: selectedDays.length > 0 ? horarios[selectedDays[0]]?.inicio : null,
+                horario_fim: selectedDays.length > 0 ? horarios[selectedDays[0]]?.fim : null,
                 data_inicio,
                 data_fim,
                 alunos_uuids: selectedStudents,
@@ -415,32 +458,44 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Horário de Início</label>
-                                        <div className="relative">
-                                            <input
-                                                type="time"
-                                                value={horario_inicio}
-                                                onChange={(e) => setHorarioInicio(e.target.value)}
-                                                className="w-full bg-white border-2 border-transparent shadow-sm rounded-[24px] p-6 font-black text-[#0E3A8C] outline-none focus:border-[#0E3A8C] transition-all text-sm appearance-none"
-                                            />
-                                            <Clock className="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 pointer-events-none" />
+                                {selectedDays.length > 0 && (
+                                    <div className="space-y-4 mt-6">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Horários por Dia</label>
+                                        <div className="space-y-3">
+                                            {selectedDays.map(dayId => {
+                                                const dayLabel = DAYS_OF_WEEK.find(d => d.id === dayId)?.label;
+                                                return (
+                                                    <div key={dayId} className="flex items-center gap-4 bg-white p-4 rounded-[24px] border-2 border-transparent shadow-sm">
+                                                        <div className="w-20 font-black text-[#0E3A8C] uppercase text-xs tracking-wider">
+                                                            {dayLabel}
+                                                        </div>
+                                                        <div className="flex-1 flex items-center gap-4">
+                                                            <div className="relative flex-1">
+                                                                <input
+                                                                    type="time"
+                                                                    value={horarios[dayId]?.inicio || ''}
+                                                                    onChange={(e) => handleHorarioChange(dayId, 'inicio', e.target.value)}
+                                                                    className="w-full bg-gray-50 border-none rounded-2xl p-4 font-black text-[#0E3A8C] outline-none focus:ring-4 focus:ring-blue-50/50 transition-all text-sm appearance-none"
+                                                                />
+                                                                <Clock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                                            </div>
+                                                            <span className="text-gray-300 font-black">até</span>
+                                                            <div className="relative flex-1">
+                                                                <input
+                                                                    type="time"
+                                                                    value={horarios[dayId]?.fim || ''}
+                                                                    onChange={(e) => handleHorarioChange(dayId, 'fim', e.target.value)}
+                                                                    className="w-full bg-gray-50 border-none rounded-2xl p-4 font-black text-[#0E3A8C] outline-none focus:ring-4 focus:ring-blue-50/50 transition-all text-sm appearance-none"
+                                                                />
+                                                                <Clock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
-                                    <div className="space-y-3">
-                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Horário de Término</label>
-                                        <div className="relative">
-                                            <input
-                                                type="time"
-                                                value={horario_fim}
-                                                onChange={(e) => setHorarioFim(e.target.value)}
-                                                className="w-full bg-white border-2 border-transparent shadow-sm rounded-[24px] p-6 font-black text-[#0E3A8C] outline-none focus:border-[#0E3A8C] transition-all text-sm appearance-none"
-                                            />
-                                            <Clock className="absolute right-6 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 pointer-events-none" />
-                                        </div>
-                                    </div>
-                                </div>
+                                )}
 
                                 <div className="grid grid-cols-2 gap-6">
                                     <div className="space-y-3">
