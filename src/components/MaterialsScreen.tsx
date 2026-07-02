@@ -17,7 +17,8 @@ import {
     History,
     AlertCircle,
     MapPin,
-    Users
+    Users,
+    Trash2
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { NewOrderModal } from './NewOrderModal';
@@ -138,6 +139,23 @@ export function MaterialsScreen() {
         }
     };
 
+    const handleDeleteOrder = async (orderId: number) => {
+        if (!window.confirm('Tem certeza que deseja excluir este pedido?')) return;
+        try {
+            const { error } = await supabase
+                .from('pedidos_materiais')
+                .delete()
+                .eq('id', orderId);
+
+            if (error) throw error;
+            fetchData();
+        } catch (error) {
+            console.error('Error deleting order:', error);
+            alert('Erro ao excluir o pedido. Verifique as permissões do banco e tente novamente.');
+        }
+    };
+
+
     const filteredMaterials = materials.filter(m =>
         (m.nome?.toLowerCase() || '').includes(searchQuery.toLowerCase())
     );
@@ -250,7 +268,11 @@ export function MaterialsScreen() {
                             <p className="font-black text-[10px] uppercase tracking-[0.3em]">Carregando Informações...</p>
                         </div>
                     ) : activeTab === 'orders' ? (
-                        <OrdersTable orders={filteredOrders} onUpdateStatus={handleUpdateStatus} />
+                        <OrdersTable 
+                            orders={filteredOrders} 
+                            onUpdateStatus={handleUpdateStatus} 
+                            onDeleteOrder={handleDeleteOrder} 
+                        />
                     ) : (
                         <MaterialsTable materials={filteredMaterials} />
                     )}
@@ -288,7 +310,15 @@ function StatCard({ icon: Icon, label, value, color, bgColor }: any) {
     );
 }
 
-function OrdersTable({ orders, onUpdateStatus }: { orders: any[], onUpdateStatus: (id: number, status: string) => void }) {
+function OrdersTable({ 
+    orders, 
+    onUpdateStatus, 
+    onDeleteOrder 
+}: { 
+    orders: any[], 
+    onUpdateStatus: (id: number, status: string) => void,
+    onDeleteOrder: (id: number) => void 
+}) {
     if (orders.length === 0) {
         return (
             <div className="py-24 flex flex-col items-center justify-center text-gray-300">
@@ -388,6 +418,15 @@ function OrdersTable({ orders, onUpdateStatus }: { orders: any[], onUpdateStatus
                             </td>
                             <td className="px-10 py-8 text-right">
                                 <div className="flex items-center justify-end gap-2 transition-opacity duration-300">
+                                    {order.status === 'Pedido Feito' && (
+                                        <button
+                                            onClick={() => onDeleteOrder(order.id)}
+                                            className="px-4 py-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all active:scale-95 shadow-sm font-bold text-[10px] uppercase tracking-wider flex items-center gap-1.5"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            Excluir
+                                        </button>
+                                    )}
                                     {order.status === 'Enviado para Unidade' && (
                                         <button
                                             onClick={() => onUpdateStatus(order.id, 'Recebido na Unidade')}
