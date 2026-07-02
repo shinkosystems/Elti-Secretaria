@@ -10,7 +10,10 @@ import {
   MapPin,
   Loader2,
   AlertCircle,
-  Search
+  Search,
+  Trash2,
+  Globe,
+  Building2
 } from 'lucide-react';
 import {
   format,
@@ -56,6 +59,8 @@ interface Feriado {
   id: string;
   data: string;
   descricao: string;
+  tipo: 'nacional' | 'municipal' | 'escolar';
+  fk_colegio?: number | null;
 }
 
 export function ScheduleScreen() {
@@ -67,7 +72,18 @@ export function ScheduleScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
-  const [newHoliday, setNewHoliday] = useState({ data: format(new Date(), 'yyyy-MM-dd'), descricao: '' });
+  const [newHoliday, setNewHoliday] = useState<{ data: string; descricao: string; tipo: 'municipal' | 'escolar' }>({
+    data: format(new Date(), 'yyyy-MM-dd'),
+    descricao: '',
+    tipo: 'municipal'
+  });
+
+  // New tab and filter states for holidays management
+  const [activeTab, setActiveTab] = useState<'calendar' | 'holidays'>('calendar');
+  const [holidayTypeFilter, setHolidayTypeFilter] = useState<'all' | 'nacional' | 'municipal' | 'escolar'>('all');
+  const [holidaySearchQuery, setHolidaySearchQuery] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
   // Modal State for Turma Details
   const [selectedTurma, setSelectedTurma] = useState<any>(null);
@@ -126,16 +142,77 @@ export function ScheduleScreen() {
     try {
       const { error } = await supabase
         .from('feriados')
-        .insert([{ ...newHoliday, fk_colegio: profile?.fk_colegio }]);
+        .insert([{
+          data: newHoliday.data,
+          descricao: newHoliday.descricao,
+          tipo: newHoliday.tipo,
+          fk_colegio: profile?.fk_colegio
+        }]);
 
       if (error) throw error;
 
       setIsHolidayModalOpen(false);
-      setNewHoliday({ data: format(new Date(), 'yyyy-MM-dd'), descricao: '' });
+      setNewHoliday({ data: format(new Date(), 'yyyy-MM-dd'), descricao: '', tipo: 'municipal' });
       fetchData();
     } catch (error) {
       console.error('Error adding holiday:', error);
       alert('Erro ao cadastrar feriado');
+    }
+  };
+
+  const handleImportNacionais = async () => {
+    setImporting(true);
+    try {
+      const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${currentYear}`);
+      if (!response.ok) throw new Error('Falha ao buscar feriados da BrasilAPI');
+      const data = await response.json();
+
+      const feriadosToInsert = data.map((f: any) => ({
+        data: f.date,
+        descricao: f.name,
+        tipo: 'nacional',
+        fk_colegio: profile?.fk_colegio
+      }));
+
+      // Filter out holidays that are already registered on the same dates for this colegio
+      const existingDates = new Set(feriados.filter(f => f.tipo === 'nacional').map(f => f.data));
+      const newFeriados = feriadosToInsert.filter((f: any) => !existingDates.has(f.data));
+
+      if (newFeriados.length === 0) {
+        alert(`Todos os feriados nacionais de ${currentYear} já estão cadastrados para este colégio!`);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('feriados')
+        .insert(newFeriados);
+
+      if (error) throw error;
+
+      alert(`${newFeriados.length} feriados nacionais importados com sucesso para o ano de ${currentYear}!`);
+      fetchData();
+    } catch (error) {
+      console.error('Erro ao importar feriados:', error);
+      alert('Erro ao importar feriados nacionais. Verifique se o ano está correto e tente novamente.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleDeleteHoliday = async (id: string) => {
+    if (!confirm('Deseja realmente excluir este feriado? As aulas e horários voltarão a ser exibidos normalmente nesta data.')) return;
+
+    try {
+      const { error } = await supabase
+        .from('feriados')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting holiday:', error);
+      alert('Erro ao excluir feriado');
     }
   };
 
@@ -196,60 +273,109 @@ export function ScheduleScreen() {
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mt-6 mb-8">
         <div>
           <h2 className="text-3xl font-black text-white tracking-tight drop-shadow-md">Horários de Aula</h2>
-          <p className="text-blue-100 font-bold opacity-80 text-sm sm:text-base mt-2 capitalize">
-            {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-          </p>
+          {/* Tabs Selector */}
+          <div className="flex items-center gap-2 mt-3 bg-white/10 p-1 rounded-2xl border border-white/10 backdrop-blur-sm max-w-max">
+            <button
+              onClick={() => setActiveTab('calendar')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                activeTab === 'calendar'
+                  ? "bg-white text-[#0E3A8C] shadow-lg"
+                  : "text-white/60 hover:text-white"
+              )}
+            >
+              Calendário
+            </button>
+            <button
+              onClick={() => setActiveTab('holidays')}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                activeTab === 'holidays'
+                  ? "bg-white text-[#0E3A8C] shadow-lg"
+                  : "text-white/60 hover:text-white"
+              )}
+            >
+              Feriados
+            </button>
+          </div>
+          {activeTab === 'calendar' && (
+            <p className="text-blue-100 font-bold opacity-85 text-xs mt-3 capitalize tracking-wider flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+              {view === 'month' && format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+              {view === 'week' && `Semana de ${format(startOfWeek(currentDate), 'dd/MM')} a ${format(endOfWeek(currentDate), 'dd/MM/yyyy')}`}
+              {view === 'day' && format(currentDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+            </p>
+          )}
         </div>
 
-        <div className="flex-1 max-w-xl relative">
-          <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-white/40 w-5 h-5" />
-          <input
-            type="text"
-            placeholder="Buscar por professor ou aluno..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-[20px] py-4 pl-14 pr-8 text-white font-bold placeholder:text-white/40 outline-none focus:bg-white/20 transition-all shadow-lg"
-          />
-        </div>
+        {activeTab === 'calendar' ? (
+          <>
+            <div className="flex-1 max-w-xl relative">
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-white/40 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Buscar por professor ou aluno..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-[20px] py-4 pl-14 pr-8 text-white font-bold placeholder:text-white/40 outline-none focus:bg-white/20 transition-all shadow-lg"
+              />
+            </div>
 
-        <div className="flex items-center gap-4">
-          <div className="bg-white rounded-2xl shadow-sm p-1 flex border border-gray-100">
-            {(['month', 'week', 'day'] as ViewType[]).map((v) => (
+            <div className="flex items-center gap-4">
+              <div className="bg-white rounded-2xl shadow-sm p-1 flex border border-gray-100">
+                {(['month', 'week', 'day'] as ViewType[]).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                      view === v
+                        ? "bg-[#0E3A8C] text-white shadow-lg"
+                        : "text-gray-400 hover:text-[#0E3A8C]"
+                    )}
+                  >
+                    {v === 'month' ? 'Mensal' : v === 'week' ? 'Semanal' : 'Diário'}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button onClick={prev} className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-[#0E3A8C] hover:bg-gray-50 transition-all border border-gray-100">
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 bg-white rounded-xl shadow-sm text-[10px] font-black uppercase tracking-widest text-[#0E3A8C] hover:bg-gray-50 transition-all border border-gray-100">
+                  Hoje
+                </button>
+                <button onClick={next} className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-[#0E3A8C] hover:bg-gray-50 transition-all border border-gray-100">
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex-1 max-w-xl relative">
+              <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-white/40 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Buscar feriado..."
+                value={holidaySearchQuery}
+                onChange={(e) => setHolidaySearchQuery(e.target.value)}
+                className="w-full bg-white/10 backdrop-blur-md border border-white/10 rounded-[20px] py-4 pl-14 pr-8 text-white font-bold placeholder:text-white/40 outline-none focus:bg-white/20 transition-all shadow-lg"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
               <button
-                key={v}
-                onClick={() => setView(v)}
-                className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
-                  view === v
-                    ? "bg-[#0E3A8C] text-white shadow-lg"
-                    : "text-gray-400 hover:text-[#0E3A8C]"
-                )}
+                onClick={() => setIsHolidayModalOpen(true)}
+                className="bg-brand-red text-white font-black py-4 px-6 rounded-2xl shadow-lg shadow-brand-red/20 flex items-center gap-2 active:scale-95 transition-all text-xs uppercase tracking-widest"
               >
-                {v === 'month' ? 'Mensal' : v === 'week' ? 'Semanal' : 'Diário'}
+                <Plus className="w-4 h-4" />
+                Cadastrar Feriado
               </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button onClick={prev} className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-[#0E3A8C] hover:bg-gray-50 transition-all border border-gray-100">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 bg-white rounded-xl shadow-sm text-[10px] font-black uppercase tracking-widest text-[#0E3A8C] hover:bg-gray-50 transition-all border border-gray-100">
-              Hoje
-            </button>
-            <button onClick={next} className="w-10 h-10 bg-white rounded-xl shadow-sm flex items-center justify-center text-[#0E3A8C] hover:bg-gray-50 transition-all border border-gray-100">
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-
-          <button
-            onClick={() => setIsHolidayModalOpen(true)}
-            className="bg-brand-red text-white font-black py-3 px-6 rounded-xl shadow-lg shadow-brand-red/20 flex items-center gap-2 active:scale-95 transition-all text-xs uppercase tracking-widest"
-          >
-            <Plus className="w-4 h-4" />
-            Cadastrar Feriado
-          </button>
-        </div>
+            </div>
+          </>
+        )}
       </div>
     );
   };
@@ -465,6 +591,158 @@ export function ScheduleScreen() {
     );
   };
 
+  const renderHolidaysView = () => {
+    const filteredFeriados = feriados.filter(f => {
+      const matchesSearch = (f.descricao?.toLowerCase() || '').includes(holidaySearchQuery.toLowerCase()) || f.data.includes(holidaySearchQuery);
+      
+      if (holidayTypeFilter === 'all') return matchesSearch;
+      return matchesSearch && f.tipo === holidayTypeFilter;
+    }).sort((a, b) => a.data.localeCompare(b.data));
+
+    return (
+      <div className="space-y-8">
+        {/* Top actions card */}
+        <div className="bg-white rounded-[40px] shadow-2xl p-8 border border-white/50 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center text-[#0E3A8C] shadow-inner shrink-0">
+              <Globe className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-[#0E3A8C] tracking-tight">Feriados Nacionais</h3>
+              <p className="text-gray-400 font-bold text-xs">Importe automaticamente os feriados nacionais oficiais usando a BrasilAPI.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-sm font-bold text-[#0E3A8C]">
+              <span>Ano:</span>
+              <input
+                type="number"
+                min="2020"
+                max="2100"
+                value={currentYear}
+                onChange={(e) => setCurrentYear(parseInt(e.target.value) || new Date().getFullYear())}
+                className="w-16 bg-transparent border-none text-[#0E3A8C] font-black focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={handleImportNacionais}
+              disabled={importing}
+              className="flex-1 md:flex-none bg-[#0E3A8C] text-white font-black py-4 px-6 rounded-2xl shadow-xl shadow-blue-900/20 active:scale-95 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <Globe className="w-4 h-4" />
+                  Importar {currentYear}
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* List of holidays */}
+        <div className="bg-white rounded-[40px] shadow-2xl p-8 border border-white/50 space-y-6">
+          {/* Filters & Header */}
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-6">
+            <h3 className="text-xl font-black text-[#0E3A8C] tracking-tight flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-brand-red" />
+              Feriados Cadastrados
+            </h3>
+            
+            {/* Filter chips */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { id: 'all', label: 'Todos' },
+                { id: 'nacional', label: 'Nacionais' },
+                { id: 'municipal', label: 'Municipais' },
+                { id: 'escolar', label: 'Escolares' }
+              ].map(chip => (
+                <button
+                  key={chip.id}
+                  onClick={() => setHolidayTypeFilter(chip.id as any)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border",
+                    holidayTypeFilter === chip.id
+                      ? "bg-[#0E3A8C] text-white border-transparent shadow-md"
+                      : "bg-white text-gray-400 border-gray-100 hover:text-[#0E3A8C]"
+                  )}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Holiday Cards List */}
+          {filteredFeriados.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredFeriados.map(feriado => {
+                const holidayDate = parseISO(feriado.data);
+                const isNational = feriado.tipo === 'nacional';
+                const isMunicipal = feriado.tipo === 'municipal';
+                const isEscolar = feriado.tipo === 'escolar';
+
+                return (
+                  <div
+                    key={feriado.id}
+                    className="bg-gray-50 border border-gray-100 rounded-[24px] p-6 flex items-center justify-between hover:bg-white hover:shadow-xl hover:-translate-y-0.5 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      {/* Badge de dia */}
+                      <div className="w-14 h-14 rounded-2xl bg-white flex flex-col items-center justify-center border border-gray-100 shadow-sm shrink-0">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-tight leading-none mb-0.5">
+                          {format(holidayDate, 'MMM', { locale: ptBR })}
+                        </span>
+                        <span className="text-xl font-black text-[#0E3A8C] tracking-tighter leading-none">
+                          {format(holidayDate, 'd')}
+                        </span>
+                      </div>
+                      
+                      <div>
+                        <h4 className="font-black text-[#0E3A8C] text-sm leading-tight mb-1 group-hover:text-brand-red transition-colors">
+                          {feriado.descricao}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8px] font-bold text-gray-400">
+                            {format(holidayDate, 'EEEE', { locale: ptBR })}
+                          </span>
+                          <span className={cn(
+                            "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                            isNational && "bg-red-50 text-red-500",
+                            isMunicipal && "bg-blue-50 text-blue-500",
+                            isEscolar && "bg-purple-50 text-purple-500"
+                          )}>
+                            {feriado.tipo === 'nacional' ? 'Nacional' : feriado.tipo === 'municipal' ? 'Municipal' : 'Escolar'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteHoliday(feriado.id)}
+                      className="w-10 h-10 rounded-xl bg-white border border-gray-100 flex items-center justify-center text-gray-400 hover:bg-brand-red hover:text-white transition-all shadow-sm border-dashed"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-gray-50 rounded-[32px] border border-dashed border-gray-200">
+              <CalendarIcon className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+              <p className="text-gray-400 font-bold">Nenhum feriado encontrado com os filtros selecionados.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -477,9 +755,15 @@ export function ScheduleScreen() {
     <div className="pb-12">
       {renderHeader()}
 
-      {view === 'month' && renderMonthView()}
-      {view === 'week' && renderWeekView()}
-      {view === 'day' && renderDayView()}
+      {activeTab === 'calendar' ? (
+        <>
+          {view === 'month' && renderMonthView()}
+          {view === 'week' && renderWeekView()}
+          {view === 'day' && renderDayView()}
+        </>
+      ) : (
+        renderHolidaysView()
+      )}
 
       {/* Holiday Modal */}
       <AnimatePresence>
@@ -510,11 +794,22 @@ export function ScheduleScreen() {
                   <input
                     type="text"
                     required
-                    placeholder="Ex: Independência do Brasil"
+                    placeholder="Ex: Aniversário da Cidade"
                     value={newHoliday.descricao}
                     onChange={(e) => setNewHoliday({ ...newHoliday, descricao: e.target.value })}
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-6 font-bold text-[#0E3A8C] outline-none focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
                   />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Tipo de Feriado</label>
+                  <select
+                    value={newHoliday.tipo}
+                    onChange={(e) => setNewHoliday({ ...newHoliday, tipo: e.target.value as any })}
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 px-6 font-bold text-[#0E3A8C] outline-none focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
+                  >
+                    <option value="municipal">Municipal / Local</option>
+                    <option value="escolar">Recesso Escolar</option>
+                  </select>
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button
