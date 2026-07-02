@@ -16,10 +16,12 @@ import {
     TrendingUp,
     History,
     AlertCircle,
-    MapPin
+    MapPin,
+    Users
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { NewOrderModal } from './NewOrderModal';
+import { BulkOrderModal } from './BulkOrderModal';
 
 export function MaterialsScreen() {
     const { profile } = useAuth();
@@ -29,6 +31,7 @@ export function MaterialsScreen() {
     const [orders, setOrders] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+    const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
     useEffect(() => {
         if (profile?.fk_colegio) {
@@ -218,13 +221,22 @@ export function MaterialsScreen() {
                                 />
                             </div>
                             {activeTab === 'orders' && (
-                                <button
-                                    onClick={() => setIsRegisterModalOpen(true)}
-                                    className="bg-brand-red text-white font-black py-4 px-8 rounded-full shadow-lg shadow-brand-red/20 flex items-center gap-3 active:scale-95 transition-all shrink-0"
-                                >
-                                    <Plus className="w-5 h-5" />
-                                    <span className="text-xs uppercase tracking-widest text-white">Novo Pedido</span>
-                                </button>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => setIsBulkModalOpen(true)}
+                                        className="bg-white border-2 border-gray-100 hover:border-gray-200 text-[#0E3A8C] font-black py-4 px-8 rounded-full shadow-lg flex items-center gap-3 active:scale-95 transition-all shrink-0"
+                                    >
+                                        <Users className="w-5 h-5" />
+                                        <span className="text-xs uppercase tracking-widest text-[#0E3A8C]">Pedido em Lote</span>
+                                    </button>
+                                    <button
+                                        onClick={() => setIsRegisterModalOpen(true)}
+                                        className="bg-brand-red text-white font-black py-4 px-8 rounded-full shadow-lg shadow-brand-red/20 flex items-center gap-3 active:scale-95 transition-all shrink-0"
+                                    >
+                                        <Plus className="w-5 h-5" />
+                                        <span className="text-xs uppercase tracking-widest text-white">Novo Pedido</span>
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
@@ -248,6 +260,13 @@ export function MaterialsScreen() {
             <NewOrderModal
                 isOpen={isRegisterModalOpen}
                 onClose={() => setIsRegisterModalOpen(false)}
+                onSuccess={fetchData}
+                materials={materials}
+            />
+
+            <BulkOrderModal
+                isOpen={isBulkModalOpen}
+                onClose={() => setIsBulkModalOpen(false)}
                 onSuccess={fetchData}
                 materials={materials}
             />
