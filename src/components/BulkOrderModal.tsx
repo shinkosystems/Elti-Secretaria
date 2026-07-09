@@ -58,7 +58,6 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
     const [selectedStudentUuids, setSelectedStudentUuids] = useState<string[]>([]);
     const [selectedTurmaId, setSelectedTurmaId] = useState<string | null>(null);
-    const [addressType, setAddressType] = useState<'school' | 'home'>('school');
     const [studentSearchQuery, setStudentSearchQuery] = useState('');
 
     useEffect(() => {
@@ -164,13 +163,6 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
         setSelectedStudentUuids([]);
     };
 
-    const getSelectedStudentsWithMissingAddress = () => {
-        if (addressType !== 'home') return [];
-        return students.filter(s => selectedStudentUuids.includes(s.uuid) && !s.logradouro);
-    };
-
-    const missingAddressStudents = getSelectedStudentsWithMissingAddress();
-    const hasMissingAddressError = addressType === 'home' && missingAddressStudents.length > 0;
 
     const filteredStudents = students.filter(s => {
         const matchesSearch = s.nome.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
@@ -211,10 +203,8 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
                 const student = students.find(s => s.uuid === studentUuid);
                 let deliveryAddress = '';
 
-                if (addressType === 'school' && schoolInfo) {
+                if (schoolInfo) {
                     deliveryAddress = `Escola: ${schoolInfo.rua}, ${schoolInfo.numero} - ${schoolInfo.bairro}, ${schoolInfo.cidade}/${schoolInfo.estado} (CEP: ${schoolInfo.cep})`;
-                } else if (addressType === 'home' && student) {
-                    deliveryAddress = `Residencial: ${student.logradouro || 'N/A'}, ${student.numero || 'N/A'} - ${student.bairro || 'N/A'}, ${student.cidade || 'N/A'}/${student.uf || 'N/A'} (CEP: ${student.cep || 'N/A'})`;
                 }
 
                 return {
@@ -252,7 +242,6 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
         setSelectedItemId(null);
         setSelectedStudentUuids([]);
         setSelectedTurmaId(null);
-        setAddressType('school');
         setStudentSearchQuery('');
     };
 
@@ -354,87 +343,31 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
                                                 Local de Entrega (Para todos do lote)
                                             </label>
 
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setAddressType('school')}
-                                                    className={cn(
-                                                        "p-4 rounded-[20px] border-2 transition-all flex flex-col gap-2 group relative overflow-hidden",
-                                                        addressType === 'school'
-                                                            ? "border-[#0E3A8C] bg-blue-50/30 shadow-lg shadow-blue-900/5"
-                                                            : "border-gray-50 bg-gray-50/30 hover:border-gray-100"
-                                                    )}
+                                            <div className="grid grid-cols-1 gap-4">
+                                                <div
+                                                    className={
+                                                        "p-4 rounded-[20px] border-2 transition-all flex flex-col gap-2 group relative overflow-hidden border-[#0E3A8C] bg-blue-50/30 shadow-lg shadow-blue-900/5"
+                                                    }
                                                 >
                                                     <div className="flex items-center justify-between">
-                                                        <div className={cn(
-                                                            "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                                                            addressType === 'school' ? "bg-[#0E3A8C] text-white" : "bg-gray-100 text-gray-400"
-                                                        )}>
+                                                        <div className={
+                                                            "w-8 h-8 rounded-lg flex items-center justify-center transition-colors bg-[#0E3A8C] text-white"
+                                                        }>
                                                             <School className="w-4 h-4" />
                                                         </div>
-                                                        {addressType === 'school' && <div className="w-4 h-4 rounded-full bg-[#0E3A8C] flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-white" /></div>}
+                                                        <div className="w-4 h-4 rounded-full bg-[#0E3A8C] flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-white" /></div>
                                                     </div>
                                                     <div className="text-left">
-                                                        <span className={cn(
-                                                            "block font-black text-[10px] uppercase tracking-wider",
-                                                            addressType === 'school' ? "text-[#0E3A8C]" : "text-gray-400"
-                                                        )}>Retirar na Escola</span>
+                                                        <span className={
+                                                            "block font-black text-[10px] uppercase tracking-wider text-[#0E3A8C]"
+                                                        }>Retirar na Escola</span>
                                                         <span className="text-[9px] text-gray-400 font-bold line-clamp-1 mt-0.5">
                                                             {schoolInfo ? `${schoolInfo.rua}, ${schoolInfo.numero}` : 'Endereço da Unidade'}
                                                         </span>
                                                     </div>
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setAddressType('home')}
-                                                    className={cn(
-                                                        "p-4 rounded-[20px] border-2 transition-all flex flex-col gap-2 group relative overflow-hidden",
-                                                        addressType === 'home'
-                                                            ? "border-[#0E3A8C] bg-blue-50/30 shadow-lg shadow-blue-900/5"
-                                                            : "border-gray-50 bg-gray-50/30 hover:border-gray-100"
-                                                    )}
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <div className={cn(
-                                                            "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
-                                                            addressType === 'home' ? "bg-[#0E3A8C] text-white" : "bg-gray-100 text-gray-400"
-                                                        )}>
-                                                            <Home className="w-4 h-4" />
-                                                        </div>
-                                                        {addressType === 'home' && <div className="w-4 h-4 rounded-full bg-[#0E3A8C] flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-white" /></div>}
-                                                    </div>
-                                                    <div className="text-left">
-                                                        <span className={cn(
-                                                            "block font-black text-[10px] uppercase tracking-wider",
-                                                            addressType === 'home' ? "text-[#0E3A8C]" : "text-gray-400"
-                                                        )}>Entrega em Casa</span>
-                                                        <span className="text-[9px] text-gray-400 font-bold line-clamp-1 mt-0.5">
-                                                            Endereço Residencial dos Alunos
-                                                        </span>
-                                                    </div>
-                                                </button>
+                                                </div>
                                             </div>
                                         </div>
-
-                                        {/* Address validation warnings */}
-                                        {hasMissingAddressError && (
-                                            <motion.div
-                                                initial={{ opacity: 0, y: 10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                className="p-4 bg-red-50 rounded-2xl border border-red-100 space-y-2 text-red-600 max-h-[150px] overflow-y-auto"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <X className="w-4 h-4 shrink-0" />
-                                                    <p className="text-[10px] font-black uppercase tracking-wider">Atenção: Alunos sem endereço residencial!</p>
-                                                </div>
-                                                <ul className="list-disc pl-5 text-[9px] font-bold space-y-0.5">
-                                                    {missingAddressStudents.map(s => (
-                                                        <li key={s.uuid}>{s.nome} ({s.email})</li>
-                                                    ))}
-                                                </ul>
-                                            </motion.div>
-                                        )}
                                     </div>
 
                                     {/* Right side: Student Selection List */}
@@ -479,7 +412,6 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
                                             {filteredStudents.length > 0 ? (
                                                 filteredStudents.map(student => {
                                                     const isSelected = selectedStudentUuids.includes(student.uuid);
-                                                    const isMissingAddress = addressType === 'home' && !student.logradouro;
 
                                                     return (
                                                         <button
@@ -490,8 +422,7 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
                                                                 "w-full p-3 rounded-xl border flex items-center justify-between text-left transition-all",
                                                                 isSelected 
                                                                     ? "border-blue-100 bg-blue-50/20" 
-                                                                    : "border-transparent bg-white hover:bg-gray-100/50",
-                                                                isMissingAddress && isSelected && "border-red-100 bg-red-50/10"
+                                                                    : "border-transparent bg-white hover:bg-gray-100/50"
                                                             )}
                                                         >
                                                             <div className="flex items-center gap-3 truncate min-w-0">
@@ -513,13 +444,7 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
                                                                 </div>
                                                             </div>
 
-                                                            {/* Label if address is missing */}
-                                                            {isMissingAddress && (
-                                                                <span className="text-[8px] bg-red-100 text-red-600 font-black px-2 py-0.5 rounded uppercase shrink-0">
-                                                                    Sem Endereço
-                                                                </span>
-                                                            )}
-                                                        </button>
+                                                            </button>
                                                     );
                                                 })
                                             ) : (
@@ -543,7 +468,7 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={loading || !selectedItemId || selectedStudentUuids.length === 0 || hasMissingAddressError}
+                                        disabled={loading || !selectedItemId || selectedStudentUuids.length === 0}
                                         className={cn(
                                             "flex-[1.5] py-5 rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95 disabled:grayscale disabled:opacity-50 disabled:cursor-not-allowed",
                                             success ? "bg-green-500 text-white shadow-green-200" : "bg-brand-red text-white shadow-brand-red/20"

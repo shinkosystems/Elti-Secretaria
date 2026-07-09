@@ -49,7 +49,6 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
     // Form Stats
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
     const [selectedStudentUuid, setSelectedStudentUuid] = useState<string | null>(null);
-    const [addressType, setAddressType] = useState<'school' | 'home'>('school');
 
     useEffect(() => {
         if (isOpen && profile?.fk_colegio) {
@@ -127,10 +126,8 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
             }
 
             let deliveryAddress = '';
-            if (addressType === 'school' && schoolInfo) {
+            if (schoolInfo) {
                 deliveryAddress = `Escola: ${schoolInfo.rua}, ${schoolInfo.numero} - ${schoolInfo.bairro}, ${schoolInfo.cidade}/${schoolInfo.estado} (CEP: ${schoolInfo.cep})`;
-            } else if (addressType === 'home' && selectedStudent) {
-                deliveryAddress = `Residencial: ${selectedStudent.logradouro || 'N/A'}, ${selectedStudent.numero || 'N/A'} - ${selectedStudent.bairro || 'N/A'}, ${selectedStudent.cidade || 'N/A'}/${selectedStudent.uf || 'N/A'} (CEP: ${selectedStudent.cep || 'N/A'})`;
             }
 
             const { error } = await supabase
@@ -164,7 +161,6 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
     const resetForm = () => {
         setSelectedItemId(null);
         setSelectedStudentUuid(null);
-        setAddressType('school');
     };
 
     return (
@@ -268,81 +264,34 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
                                         Local de Entrega
                                     </label>
 
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setAddressType('school')}
-                                            className={cn(
-                                                "p-6 rounded-[24px] border-2 transition-all flex flex-col gap-3 group relative overflow-hidden",
-                                                addressType === 'school'
-                                                    ? "border-[#0E3A8C] bg-blue-50/30 shadow-lg shadow-blue-900/5"
-                                                    : "border-gray-50 bg-gray-50/30 hover:border-gray-100"
-                                            )}
+                                    <div className="grid grid-cols-1 gap-4">
+                                        <div
+                                            className={
+                                                "p-6 rounded-[24px] border-2 transition-all flex flex-col gap-3 group relative overflow-hidden border-[#0E3A8C] bg-blue-50/30 shadow-lg shadow-blue-900/5"
+                                            }
                                         >
                                             <div className="flex items-center justify-between">
-                                                <div className={cn(
-                                                    "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                                                    addressType === 'school' ? "bg-[#0E3A8C] text-white" : "bg-gray-100 text-gray-400"
-                                                )}>
+                                                <div className={
+                                                    "w-10 h-10 rounded-xl flex items-center justify-center transition-colors bg-[#0E3A8C] text-white"
+                                                }>
                                                     <School className="w-5 h-5" />
                                                 </div>
-                                                {addressType === 'school' && <div className="w-4 h-4 rounded-full bg-[#0E3A8C] flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-white" /></div>}
+                                                <div className="w-4 h-4 rounded-full bg-[#0E3A8C] flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-white" /></div>
                                             </div>
                                             <div className="text-left">
-                                                <span className={cn(
-                                                    "block font-black text-xs uppercase tracking-wider",
-                                                    addressType === 'school' ? "text-[#0E3A8C]" : "text-gray-400"
-                                                )}>Retirar na Escola</span>
+                                                <span className={
+                                                    "block font-black text-xs uppercase tracking-wider text-[#0E3A8C]"
+                                                }>Retirar na Escola</span>
                                                 <span className="text-[10px] text-gray-400 font-bold line-clamp-2 mt-1">
                                                     {schoolInfo ? `${schoolInfo.rua}, ${schoolInfo.numero}` : 'Endereço da Unidade'}
                                                 </span>
                                             </div>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => setAddressType('home')}
-                                            className={cn(
-                                                "p-6 rounded-[24px] border-2 transition-all flex flex-col gap-3 group relative overflow-hidden",
-                                                addressType === 'home'
-                                                    ? "border-[#0E3A8C] bg-blue-50/30 shadow-lg shadow-blue-900/5"
-                                                    : "border-gray-50 bg-gray-50/30 hover:border-gray-100"
-                                            )}
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className={cn(
-                                                    "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                                                    addressType === 'home' ? "bg-[#0E3A8C] text-white" : "bg-gray-100 text-gray-400"
-                                                )}>
-                                                    <Home className="w-5 h-5" />
-                                                </div>
-                                                {addressType === 'home' && <div className="w-4 h-4 rounded-full bg-[#0E3A8C] flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-white" /></div>}
-                                            </div>
-                                            <div className="text-left">
-                                                <span className={cn(
-                                                    "block font-black text-xs uppercase tracking-wider",
-                                                    addressType === 'home' ? "text-[#0E3A8C]" : "text-gray-400"
-                                                )}>Entrega em Casa</span>
-                                                <span className="text-[10px] text-gray-400 font-bold line-clamp-2 mt-1">
-                                                    {selectedStudent?.logradouro ? `${selectedStudent.logradouro}, ${selectedStudent.numero}` : 'Endereço Residencial'}
-                                                </span>
-                                            </div>
-                                        </button>
+                                        </div>
                                     </div>
                                 </motion.div>
                             )}
 
-                            {/* Alert for empty student address if selected */}
-                            {addressType === 'home' && selectedStudent && !selectedStudent.logradouro && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="p-4 bg-red-50 rounded-2xl border border-red-100 flex items-center gap-3 text-red-600"
-                                >
-                                    <X className="w-5 h-5 shrink-0" />
-                                    <p className="text-[10px] font-black uppercase tracking-wider">Atenção: Endereço do aluno não cadastrado!</p>
-                                </motion.div>
-                            )}
+
 
                             <div className="flex gap-4 pt-6">
                                 <button
@@ -354,7 +303,7 @@ export function NewOrderModal({ isOpen, onClose, onSuccess, materials }: NewOrde
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={loading || !selectedItemId || !selectedStudentUuid || (addressType === 'home' && !selectedStudent?.logradouro)}
+                                    disabled={loading || !selectedItemId || !selectedStudentUuid}
                                     className={cn(
                                         "flex-[1.5] py-5 rounded-[24px] font-black text-[10px] uppercase tracking-[0.2em] shadow-lg transition-all flex items-center justify-center gap-3 active:scale-95 disabled:grayscale disabled:opacity-50 disabled:cursor-not-allowed",
                                         success ? "bg-green-500 text-white shadow-green-200" : "bg-brand-red text-white shadow-brand-red/20"
