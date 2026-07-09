@@ -78,13 +78,19 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
             setBooks(booksData || []);
 
             // Fetch Students
-            const { data: studentsData } = await supabase
+            const { data: usersData } = await supabase
                 .from('users')
                 .select('*')
-                .contains('tipousuario', ['Student'])
                 .eq('fk_colegio', profile?.fk_colegio)
                 .order('nome');
-            setStudents(studentsData || []);
+            
+            const studentsData = (usersData || []).filter(u => {
+                if (!u.tipousuario) return false;
+                const roles = Array.isArray(u.tipousuario) ? u.tipousuario : [u.tipousuario];
+                return roles.includes('Student');
+            });
+            
+            setStudents(studentsData);
 
             // Fetch Turmas
             const { data: turmasData } = await supabase
@@ -137,18 +143,25 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
                 return [...prev, uuid];
             }
         });
-        // Clear selected Turma if user modifies student selection manually
-        setSelectedTurmaId(null);
     };
 
     const selectAllStudents = () => {
-        setSelectedStudentUuids(students.map(s => s.uuid));
-        setSelectedTurmaId(null);
+        if (selectedTurmaId) {
+            const numericTurmaId = parseInt(selectedTurmaId);
+            const turma = turmas.find(t => t.id === numericTurmaId);
+            if (turma && turma.alunos_uuids) {
+                const validStudentUuids = students
+                    .filter(s => turma.alunos_uuids?.includes(s.uuid))
+                    .map(s => s.uuid);
+                setSelectedStudentUuids(validStudentUuids);
+            }
+        } else {
+            setSelectedStudentUuids(students.map(s => s.uuid));
+        }
     };
 
     const deselectAllStudents = () => {
         setSelectedStudentUuids([]);
-        setSelectedTurmaId(null);
     };
 
     const getSelectedStudentsWithMissingAddress = () => {
@@ -159,10 +172,21 @@ export function BulkOrderModal({ isOpen, onClose, onSuccess, materials }: BulkOr
     const missingAddressStudents = getSelectedStudentsWithMissingAddress();
     const hasMissingAddressError = addressType === 'home' && missingAddressStudents.length > 0;
 
-    const filteredStudents = students.filter(s =>
-        s.nome.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
-        s.email.toLowerCase().includes(studentSearchQuery.toLowerCase())
-    );
+    const filteredStudents = students.filter(s => {
+        const matchesSearch = s.nome.toLowerCase().includes(studentSearchQuery.toLowerCase()) ||
+                              s.email.toLowerCase().includes(studentSearchQuery.toLowerCase());
+        
+        if (selectedTurmaId) {
+            const numericTurmaId = parseInt(selectedTurmaId);
+            const turma = turmas.find(t => t.id === numericTurmaId);
+            if (turma && turma.alunos_uuids) {
+                return matchesSearch && turma.alunos_uuids.includes(s.uuid);
+            }
+            return false;
+        }
+        
+        return matchesSearch;
+    });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
