@@ -154,9 +154,7 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
                 .select(`
                     id, 
                     nome,
-                    sala,
-                    professor:users!professor_uuid(nome),
-                    users(nome)
+                    sala
                 `)
                 .eq('fk_colegio', fk_colegio)
                 .eq('ativo', true)
@@ -176,16 +174,25 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
         if (!user) return;
         setLoading(true);
         try {
+            const updatePayload: any = {
+                idbooks: selectedBookId,
+                fk_turma: selectedTurmaId,
+                tipousuario: selectedRoles,
+            };
+
+            if (formData.nome) updatePayload.nome = formData.nome;
+            if (formData.email) updatePayload.email = formData.email;
+            if (formData.telefone !== undefined) updatePayload.telefone = formData.telefone || null;
+            if (formData.cpf !== undefined) updatePayload.cpf = formData.cpf || null;
+            if (formData.responsavel_financeiro !== undefined) updatePayload.responsavel_financeiro = formData.responsavel_financeiro || null;
+            if (formData.cpf_responsavel_financeiro !== undefined) updatePayload.cpf_responsavel_financeiro = formData.cpf_responsavel_financeiro || null;
+            if (formData.nascimento !== undefined) updatePayload.nascimento = formData.nascimento || null;
+            if (formData.genero !== undefined) updatePayload.genero = formData.genero || null;
+
             const { error } = await supabase
                 .from('users')
-                .update({
-                    idbooks: selectedBookId,
-                    fk_turma: selectedTurmaId,
-                    tipousuario: selectedRoles,
-                    ...formData
-                })
+                .update(updatePayload)
                 .eq('id', user.id);
-
 
             if (error) throw error;
 
@@ -195,9 +202,9 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
                 onSuccess();
                 onClose();
             }, 1500);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error updating student settings:', error);
-            alert('Erro ao salvar as configurações.');
+            alert(`Erro ao salvar as configurações: ${error?.message || 'Erro desconhecido'}`);
         } finally {
             setLoading(false);
         }

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Auth } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
@@ -6,7 +7,19 @@ import { Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 function AppContent() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
+
+  const isInactive = profile?.ativo === false || (profile?.fk_colegio ? profile?.colegios?.ativo === false : false);
+
+  useEffect(() => {
+    if (user && profile && isInactive && !loading) {
+      signOut();
+    }
+  }, [user, profile, isInactive, loading, signOut]);
+
+  if (user && profile && isInactive && !loading) {
+    return null;
+  }
 
   if (loading) {
     return (

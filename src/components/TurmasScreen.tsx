@@ -151,7 +151,7 @@ export function TurmasScreen() {
             // Legacy fallback
             return (
                 <div className="flex flex-col gap-1">
-                    <span className="font-bold text-[#0E3A8C]">{dias.map((d: string) => dayMapping[d] || d).join(', ')}</span>
+                    <span className="font-bold text-[#0E3A8C]">{dias.map((d: string) => DAY_MAP[d] || d).join(', ')}</span>
                     <span className="text-gray-400 text-[10px] uppercase tracking-wider">
                         {turma.horario_inicio?.slice(0, 5)} - {turma.horario_fim?.slice(0, 5)}
                     </span>
@@ -166,7 +166,7 @@ export function TurmasScreen() {
             if (h && h.inicio && h.fim) {
                 const range = `${h.inicio.slice(0, 5)} - ${h.fim.slice(0, 5)}`;
                 if (!groups[range]) groups[range] = [];
-                groups[range].push(dayMapping[d] || d);
+                groups[range].push(DAY_MAP[d] || d);
             }
         });
 
@@ -259,13 +259,13 @@ export function TurmasScreen() {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3 overflow-x-auto pb-4 no-scrollbar max-w-full">
+                    <div className="flex flex-wrap items-center gap-2 max-w-full pt-1">
                         <button
                             onClick={() => setLevelFilter('Todos')}
                             className={cn(
-                                "whitespace-nowrap px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all flex items-center gap-2",
+                                "px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.12em] transition-all flex items-center gap-1.5 shrink-0",
                                 levelFilter === 'Todos'
-                                    ? "bg-[#0E3A8C] text-white shadow-xl shadow-blue-900/20"
+                                    ? "bg-[#0E3A8C] text-white shadow-md shadow-blue-900/20"
                                     : "bg-gray-50 text-gray-400 hover:bg-gray-100"
                             )}
                         >
@@ -284,9 +284,9 @@ export function TurmasScreen() {
                                     key={book.id}
                                     onClick={() => setLevelFilter(book.id)}
                                     className={cn(
-                                        "whitespace-nowrap px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all flex items-center gap-2",
+                                        "px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.12em] transition-all flex items-center gap-1.5 shrink-0",
                                         levelFilter === book.id
-                                            ? "bg-[#0E3A8C] text-white shadow-xl shadow-blue-900/20"
+                                            ? "bg-[#0E3A8C] text-white shadow-md shadow-blue-900/20"
                                             : "bg-gray-50 text-gray-400 hover:bg-gray-100"
                                     )}
                                 >

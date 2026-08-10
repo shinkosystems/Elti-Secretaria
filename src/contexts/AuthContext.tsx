@@ -12,6 +12,8 @@ interface UserProfile {
     isAdmin: boolean;
     criado_secretaria?: boolean;
     senha_alterada?: boolean;
+    ativo?: boolean;
+    colegios?: { ativo?: boolean } | null;
 }
 
 interface AuthContextType {
@@ -23,6 +25,13 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const isProfileOrSchoolInactive = (p: UserProfile | null) => {
+    if (!p) return false;
+    if (p.ativo === false) return true;
+    if (p.fk_colegio && p.colegios?.ativo === false) return true;
+    return false;
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
@@ -55,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const profilePromise = (async () => {
                 const { data, error } = await supabase
                     .from('users')
-                    .select('*')
+                    .select('*, colegios(ativo)')
                     .eq('uuid', userId)
                     .single();
 
@@ -106,6 +115,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                     try {
                         const p = await fetchProfile(session.user.id);
+                        if (isProfileOrSchoolInactive(p)) {
+                            console.warn('AuthContext: User or school is inactive. Signing out...');
+                            await supabase.auth.signOut();
+                            if (isMounted) {
+                                setUser(null);
+                                setProfile(null);
+                                localStorage.removeItem('elti_user_profile');
+                                alert('Sua conta de usuário ou unidade de ensino está inativa. O acesso à plataforma não é permitido. Entre em contato com a administração.');
+                            }
+                            return;
+                        }
                         if (isMounted) {
                             setProfile(p);
                         }
@@ -127,7 +147,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         const cached = localStorage.getItem('elti_user_profile');
                         if (cached) {
                             try {
-                                setProfile(JSON.parse(cached));
+                                const parsed = JSON.parse(cached);
+                                if (isProfileOrSchoolInactive(parsed)) {
+                                    localStorage.removeItem('elti_user_profile');
+                                    setProfile(null);
+                                } else {
+                                    setProfile(parsed);
+                                }
                             } catch (e) {
                                 localStorage.removeItem('elti_user_profile');
                             }
@@ -140,6 +166,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Listen for auth changes
         const setupListener = () => {
+            if (!supabase || !supabase.auth) return;
+
             const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
                 if (!isMounted) return;
 
@@ -169,6 +197,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setLoading(true);
                         try {
                             const p = await fetchProfile(session.user.id);
+                            if (isProfileOrSchoolInactive(p)) {
+                                console.warn('AuthContext: User or school is inactive. Signing out...');
+                                await supabase.auth.signOut();
+                                if (isMounted) {
+                                    setUser(null);
+                                    setProfile(null);
+                                    localStorage.removeItem('elti_user_profile');
+                                    alert('Sua conta de usuário ou unidade de ensino está inativa. O acesso à plataforma não é permitido. Entre em contato com a administração.');
+                                }
+                                return;
+                            }
                             if (isMounted) setProfile(p);
                         } catch (err) {
                             console.warn('AuthContext: Profile fetch failed during auth change:', err);
@@ -177,7 +216,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         }
                     } else {
                         // Background update if user already exists
-                        fetchProfile(session.user.id).then(p => {
+                        fetchProfile(session.user.id).then(async p => {
+                            if (isProfileOrSchoolInactive(p)) {
+                                console.warn('AuthContext: User or school is inactive. Signing out...');
+                                await supabase.auth.signOut();
+                                if (isMounted) {
+                                    setUser(null);
+                                    setProfile(null);
+                                    localStorage.removeItem('elti_user_profile');
+                                    alert('Sua conta de usuário ou unidade de ensino está inativa. O acesso à plataforma não é permitido. Entre em contato com a administração.');
+                                }
+                                return;
+                            }
                             if (isMounted && p) setProfile(p);
                         }).catch(err => {
                             console.warn('AuthContext: Background profile refresh failed:', err);

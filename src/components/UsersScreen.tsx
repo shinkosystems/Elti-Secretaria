@@ -177,7 +177,7 @@ export function UsersScreen() {
 
           </div>
 
-          <div className="flex items-center gap-3 overflow-x-auto pb-4 no-scrollbar max-w-full">
+          <div className="flex flex-wrap items-center gap-2 max-w-full pt-1">
             {filterOptions.map((opt) => {
               const countKey = opt === 'Todos' ? 'Total' :
                 opt === 'Alunos' ? 'students' :
@@ -191,9 +191,9 @@ export function UsersScreen() {
                   key={opt}
                   onClick={() => setFilter(opt)}
                   className={cn(
-                    "whitespace-nowrap px-5 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all flex items-center gap-2",
+                    "px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-[0.12em] transition-all flex items-center gap-1.5 shrink-0",
                     filter === opt
-                      ? "bg-[#0E3A8C] text-white shadow-xl shadow-blue-900/20"
+                      ? "bg-[#0E3A8C] text-white shadow-md shadow-blue-900/20"
                       : "bg-gray-50 text-gray-400 hover:bg-gray-100"
                   )}
                 >
