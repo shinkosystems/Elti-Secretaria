@@ -103,10 +103,20 @@ export function Auth({ onSuccess }: AuthProps) {
         setMessage('Cadastro realizado! Verifique seu e-mail para confirmar.');
         setView('login');
       } else if (view === 'forgotPassword') {
+        const redirectUrl = window.location.origin.endsWith('/')
+          ? window.location.origin.slice(0, -1)
+          : window.location.origin;
+
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin,
+          redirectTo: redirectUrl,
         });
-        if (error) throw error;
+        if (error) {
+          console.error('[Supabase Auth Error] resetPasswordForEmail:', error);
+          if (error.message?.toLowerCase().includes('error sending recovery email') || error.message?.toLowerCase().includes('rate limit')) {
+            throw new Error('Não foi possível enviar o e-mail de recuperação. Verifique as configurações de SMTP e Redirect URLs no painel do Supabase.');
+          }
+          throw error;
+        }
         setMessage('Se este e-mail estiver registrado, você receberá um link de recuperação em breve.');
         setView('login');
       }
