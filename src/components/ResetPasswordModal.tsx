@@ -43,7 +43,10 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ onSucces
 
             setSuccessMessage('Senha redefinida com sucesso!');
             setTimeout(() => {
-                window.location.hash = '';
+                sessionStorage.removeItem('elti_password_recovery');
+                if (window.location.search || window.location.hash) {
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
                 onSuccess();
             }, 1500);
         } catch (err: any) {

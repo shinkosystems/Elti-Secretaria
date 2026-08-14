@@ -39,7 +39,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
-    const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+    const [isPasswordRecoveryState, setIsPasswordRecoveryState] = useState(() => {
+        return sessionStorage.getItem('elti_password_recovery') === 'true' ||
+            window.location.hash?.includes('type=recovery') ||
+            window.location.search?.includes('type=recovery');
+    });
+
+    const setIsPasswordRecovery = (val: boolean) => {
+        setIsPasswordRecoveryState(val);
+        if (val) {
+            sessionStorage.setItem('elti_password_recovery', 'true');
+        } else {
+            sessionStorage.removeItem('elti_password_recovery');
+        }
+    };
+
+    const isPasswordRecovery = isPasswordRecoveryState;
 
     // Use refs to avoid stale closures in auth listeners
     const userRef = React.useRef<User | null>(null);
@@ -122,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                     try {
                         const p = await fetchProfile(session.user.id);
-                        if (isProfileOrSchoolInactive(p)) {
+                        if (isProfileOrSchoolInactive(p) && !sessionStorage.getItem('elti_password_recovery')) {
                             console.warn('AuthContext: User or school is inactive. Signing out...');
                             await supabase.auth.signOut();
                             if (isMounted) {
