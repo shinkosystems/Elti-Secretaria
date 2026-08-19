@@ -257,15 +257,15 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 nome,
                 fk_colegio,
                 fk_livro,
-                professor_uuid,
-                sala,
+                professor_uuid: professor_uuid || null,
+                sala: sala || null,
                 dias_semana: selectedDays,
                 horarios: horarios,
                 // Mantemos o primeiro horário para compatibilidade legada se necessário
-                horario_inicio: selectedDays.length > 0 ? horarios[selectedDays[0]]?.inicio : null,
-                horario_fim: selectedDays.length > 0 ? horarios[selectedDays[0]]?.fim : null,
-                data_inicio,
-                data_fim,
+                horario_inicio: (selectedDays.length > 0 && horarios[selectedDays[0]]?.inicio) ? horarios[selectedDays[0]].inicio : null,
+                horario_fim: (selectedDays.length > 0 && horarios[selectedDays[0]]?.fim) ? horarios[selectedDays[0]].fim : null,
+                data_inicio: data_inicio || null,
+                data_fim: data_fim || null,
                 alunos_uuids: selectedStudents,
                 ativo: true
             };
@@ -312,9 +312,9 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 onSuccess();
                 onClose();
             }, 1500);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving turma:', error);
-            alert('Erro ao salvar a turma.');
+            alert(`Erro ao salvar a turma: ${error?.message || error?.details || 'Erro desconhecido.'}`);
         } finally {
             setLoading(false);
         }
