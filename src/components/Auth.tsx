@@ -107,7 +107,8 @@ export function Auth({ onSuccess }: AuthProps) {
           ? window.location.origin.slice(0, -1)
           : window.location.origin;
 
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        const cleanEmail = email.trim();
+        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
           redirectTo: redirectUrl,
         });
         if (error) {
