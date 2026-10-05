@@ -78,19 +78,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
             );
 
-            // Create the supabase fetch promise
+            // Create the supabase fetch promise with server-side RPC validation
             const profilePromise = (async () => {
-                const { data, error } = await supabase
+                const rpcPromise = supabase.rpc('verify_staff_session').then(res => res.data).catch(() => null);
+                
+                const dbPromise = supabase
                     .from('users')
                     .select('*, colegios(ativo)')
                     .eq('uuid', userId)
-                    .single();
+                    .single()
+                    .then(res => res.data);
 
-                if (error) {
-                    console.error('Error fetching profile:', error);
+                const [rpcResult, dbProfile] = await Promise.all([rpcPromise, dbPromise]);
+
+                if (rpcResult && rpcResult.authenticated) {
+                    if (!rpcResult.is_staff) {
+                        console.warn('AuthContext: User is not authorized as staff/secretaria by server');
+                        return null;
+                    }
+                }
+
+                if (!dbProfile) {
                     return null;
                 }
-                return data as UserProfile;
+
+                return dbProfile as UserProfile;
             })();
 
             // Race them
