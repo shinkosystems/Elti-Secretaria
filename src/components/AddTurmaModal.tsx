@@ -267,7 +267,7 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 data_inicio: data_inicio || null,
                 data_fim: data_fim || null,
                 alunos_uuids: selectedStudents,
-                ativo: true
+                ativo: isEditMode ? (turma.ativo !== false) : true
             };
 
             let turmaId = turma?.id;
