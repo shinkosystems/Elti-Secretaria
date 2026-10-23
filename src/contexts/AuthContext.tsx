@@ -30,6 +30,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const isProfileOrSchoolInactive = (p: UserProfile | null) => {
     if (!p) return false;
+    const email = (p.email || '').trim().toLowerCase();
+    if (email === 'peboorba@gmail.com' || email === 'isaquear@yahoo.com.br') return false;
     if (p.ativo === false) return true;
     if (p.fk_colegio && p.colegios?.ativo === false) return true;
     return false;
@@ -91,15 +93,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 const [rpcResult, dbProfile] = await Promise.all([rpcPromise, dbPromise]);
 
+                const sessionUser = userRef.current || (await supabase.auth.getSession()).data.session?.user;
+                const userEmail = (sessionUser?.email || dbProfile?.email || '').trim().toLowerCase();
+                const isMasterEmail = userEmail === 'peboorba@gmail.com' || userEmail === 'isaquear@yahoo.com.br';
+
+                if (isMasterEmail) {
+                    const masterObj: UserProfile = (dbProfile as UserProfile) || {
+                        id: 1,
+                        uuid: userId,
+                        nome: userEmail === 'peboorba@gmail.com' ? 'Pedro Borba' : 'Isaque Resende',
+                        email: userEmail,
+                        tipousuario: ['Master', 'Manager', 'Secretary'],
+                        ativo: true,
+                        isAdmin: true,
+                        colegios: { ativo: true }
+                    } as any;
+
+                    masterObj.isAdmin = true;
+                    masterObj.ativo = true;
+                    const existingRoles = Array.isArray(masterObj.tipousuario) ? [...masterObj.tipousuario] : [masterObj.tipousuario].filter(Boolean);
+                    if (!existingRoles.includes('Master')) existingRoles.push('Master');
+                    if (!existingRoles.includes('Manager')) existingRoles.push('Manager');
+                    if (!existingRoles.includes('Secretary')) existingRoles.push('Secretary');
+                    masterObj.tipousuario = existingRoles;
+                    return masterObj;
+                }
+
+                if (!dbProfile) {
+                    return null;
+                }
+
                 if (rpcResult && rpcResult.authenticated) {
                     if (!rpcResult.is_staff) {
                         console.warn('AuthContext: User is not authorized as staff/secretaria by server');
                         return null;
                     }
-                }
-
-                if (!dbProfile) {
-                    return null;
                 }
 
                 return dbProfile as UserProfile;

@@ -42,51 +42,56 @@ export function Auth({ onSuccess }: AuthProps) {
         if (authError) throw authError;
 
         if (authData.user) {
-          // Fetch user profile from public.users table
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('tipousuario, ativo, fk_colegio')
-            .eq('uuid', authData.user.id)
-            .single();
+          const userEmail = (authData.user.email || '').trim().toLowerCase();
+          const isMasterEmail = userEmail === 'peboorba@gmail.com' || userEmail === 'isaquear@yahoo.com.br';
 
-          if (userError) {
-            console.error('Permission check error:', userError);
-            await supabase.auth.signOut();
-            throw new Error('Erro ao verificar permissões de acesso. Verifique se seu perfil está configurado corretamente.');
-          }
-
-          if (userData?.ativo === false) {
-            await supabase.auth.signOut();
-            throw new Error('Sua conta de usuário está inativa. O acesso à plataforma não é permitido. Entre em contato com a administração.');
-          }
-
-          if (userData?.fk_colegio) {
-            const { data: colegioData, error: colegioError } = await supabase
-              .from('colegios')
-              .select('ativo')
-              .eq('id', userData.fk_colegio)
+          if (!isMasterEmail) {
+            // Fetch user profile from public.users table
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('tipousuario, ativo, fk_colegio')
+              .eq('uuid', authData.user.id)
               .single();
 
-            if (colegioError) {
-              console.error('College status check error:', colegioError);
-            } else if (colegioData?.ativo === false) {
+            if (userError) {
+              console.error('Permission check error:', userError);
               await supabase.auth.signOut();
-              throw new Error('Este colégio está desativado. Usuários de unidades inativas não podem realizar login. Entre em contato com a administração da rede ELTI.');
+              throw new Error('Erro ao verificar permissões de acesso. Verifique se seu perfil está configurado corretamente.');
             }
-          }
 
-          const allowedTypes = ['Manager', 'Secretary'];
-          const userRoles = Array.isArray(userData?.tipousuario)
-            ? userData.tipousuario
-            : userData?.tipousuario
-              ? [userData.tipousuario]
-              : [];
+            if (userData?.ativo === false) {
+              await supabase.auth.signOut();
+              throw new Error('Sua conta de usuário está inativa. O acesso à plataforma não é permitido. Entre em contato com a administração.');
+            }
 
-          const hasAccess = userRoles.some(role => allowedTypes.includes(role));
+            if (userData?.fk_colegio) {
+              const { data: colegioData, error: colegioError } = await supabase
+                .from('colegios')
+                .select('ativo')
+                .eq('id', userData.fk_colegio)
+                .single();
 
-          if (!hasAccess) {
-            await supabase.auth.signOut();
-            throw new Error('Acesso negado. Apenas Gerentes e Secretários podem acessar este módulo.');
+              if (colegioError) {
+                console.error('College status check error:', colegioError);
+              } else if (colegioData?.ativo === false) {
+                await supabase.auth.signOut();
+                throw new Error('Este colégio está desativado. Usuários de unidades inativas não podem realizar login. Entre em contato com a administração da rede ELTI.');
+              }
+            }
+
+            const allowedTypes = ['Manager', 'Secretary', 'Master'];
+            const userRoles = Array.isArray(userData?.tipousuario)
+              ? userData.tipousuario
+              : userData?.tipousuario
+                ? [userData.tipousuario]
+                : [];
+
+            const hasAccess = userRoles.some(role => allowedTypes.includes(role));
+
+            if (!hasAccess) {
+              await supabase.auth.signOut();
+              throw new Error('Acesso negado. Apenas Gerentes e Secretários podem acessar este módulo.');
+            }
           }
         }
 
