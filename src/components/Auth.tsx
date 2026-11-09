@@ -113,16 +113,40 @@ export function Auth({ onSuccess }: AuthProps) {
           : window.location.origin;
 
         const cleanEmail = email.trim();
-        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-          redirectTo: redirectUrl,
-        });
-        if (error) {
-          console.error('[Supabase Auth Error] resetPasswordForEmail:', error);
-          if (error.message?.toLowerCase().includes('error sending recovery email') || error.message?.toLowerCase().includes('rate limit')) {
-            throw new Error('Não foi possível enviar o e-mail de recuperação. Verifique as configurações de SMTP e Redirect URLs no painel do Supabase.');
-          }
-          throw error;
+        let sentViaEdge = false;
+
+        // 1. Tentar primeiro via Supabase Edge Function com Resend API
+        try {
+          const { data: edgeData, error: edgeError } = await supabase.functions.invoke('send-recovery-email', {
+            body: {
+              email: cleanEmail,
+              origin: redirectUrl,
+              appName: 'Elti Secretaria',
+            },
+          });
+
+          if (edgeError) throw edgeError;
+          if (edgeData?.error) throw new Error(edgeData.error);
+          sentViaEdge = true;
+          console.log('[RECOVERY] Enviado com sucesso via Edge Function + Resend:', edgeData);
+        } catch (edgeErr) {
+          console.warn('[RECOVERY] Edge Function indisponível ou falhou, acionando fallback nativo:', edgeErr);
         }
+
+        // 2. Fallback nativo
+        if (!sentViaEdge) {
+          const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+            redirectTo: redirectUrl,
+          });
+          if (error) {
+            console.error('[Supabase Auth Error] resetPasswordForEmail:', error);
+            if (error.message?.toLowerCase().includes('error sending recovery email') || error.message?.toLowerCase().includes('rate limit')) {
+              throw new Error('Não foi possível enviar o e-mail de recuperação. Verifique as configurações de SMTP e Redirect URLs no painel do Supabase.');
+            }
+            throw error;
+          }
+        }
+
         setMessage('Se este e-mail estiver registrado, você receberá um link de recuperação em breve.');
         setView('login');
       }
