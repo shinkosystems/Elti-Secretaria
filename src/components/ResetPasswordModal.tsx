@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Loader2, Lock, Eye, EyeOff } from 'lucide-react';
 
@@ -14,10 +14,44 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ onSucces
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+    const [hasSession, setHasSession] = useState<boolean | null>(null);
+
+    // Verifica se o link de recuperação realmente criou uma sessão (link expirado/já usado => sem sessão)
+    useEffect(() => {
+        let active = true;
+        const hashErr = /error(_code)?=/.test(window.location.hash) || /error(_code)?=/.test(window.location.search);
+        const check = async () => {
+            for (let i = 0; i < 6; i++) {
+                const { data } = await supabase.auth.getSession();
+                if (data.session) { if (active) setHasSession(true); return; }
+                if (hashErr) break;
+                await new Promise(r => setTimeout(r, 500));
+            }
+            if (active) setHasSession(false);
+        };
+        check();
+        const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => { if (sess && active) setHasSession(true); });
+        return () => { active = false; sub.subscription.unsubscribe(); };
+    }, []);
+
+    const backToLogin = async () => {
+        sessionStorage.removeItem('elti_password_recovery');
+        await supabase.auth.signOut();
+        window.location.href = window.location.pathname;
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
         setSuccessMessage(null);
+
+        if (hasSession === false) {
+            const { data } = await supabase.auth.getSession();
+            if (!data.session) {
+                setError('Link de recuperação expirado ou já utilizado. Volte ao login, solicite um novo link e abra apenas o e-mail mais recente.');
+                return;
+            }
+        }
 
         const cleanPassword = password.trim();
         const cleanConfirm = confirmPassword.trim();
@@ -75,6 +109,12 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ onSucces
                         <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl text-xs font-bold text-center">
                             {error}
                         </div>
+                    )}
+
+                    {hasSession === false && (
+                        <button type="button" onClick={backToLogin} className="w-full bg-[#0E3A8C] text-white font-black h-12 rounded-[30px] text-sm uppercase">
+                            Voltar ao login e pedir novo link
+                        </button>
                     )}
 
                     {successMessage && (

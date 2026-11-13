@@ -263,7 +263,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         setLoading(true);
                         try {
                             const p = await fetchProfile(session.user.id);
-                            if (isProfileOrSchoolInactive(p)) {
+                            if (isProfileOrSchoolInactive(p) && !sessionStorage.getItem('elti_password_recovery')) {
                                 console.warn('AuthContext: User or school is inactive. Signing out...');
                                 await supabase.auth.signOut();
                                 if (isMounted) {
@@ -283,7 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     } else {
                         // Background update if user already exists
                         fetchProfile(session.user.id).then(async p => {
-                            if (isProfileOrSchoolInactive(p)) {
+                            if (isProfileOrSchoolInactive(p) && !sessionStorage.getItem('elti_password_recovery')) {
                                 console.warn('AuthContext: User or school is inactive. Signing out...');
                                 await supabase.auth.signOut();
                                 if (isMounted) {
