@@ -71,7 +71,24 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 }
                 setDataInicio(turma.data_inicio || '');
                 setDataFim(turma.data_fim || '');
-                setSelectedStudents(turma.alunos_uuids || []);
+                if (turma.alunos_uuids && Array.isArray(turma.alunos_uuids) && turma.alunos_uuids.length > 0) {
+                    setSelectedStudents(turma.alunos_uuids);
+                } else if (turma.id) {
+                    // Fallback de segurança: se alunos_uuids estiver vazio, busca alunos reais enturmados via fk_turma
+                    supabase
+                        .from('users')
+                        .select('uuid')
+                        .eq('fk_turma', turma.id)
+                        .then(({ data }) => {
+                            if (data && data.length > 0) {
+                                setSelectedStudents(data.map(u => u.uuid));
+                            } else {
+                                setSelectedStudents([]);
+                            }
+                        });
+                } else {
+                    setSelectedStudents([]);
+                }
             } else {
                 // Reset form
                 setNome('');
@@ -288,16 +305,26 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 turmaId = data.id;
             }
 
-            // Update users.fk_turma for selected students
-            // First, remove this turma from any students who were in it but are no longer
-            if (isEditMode) {
-                await supabase
+            // Update users.fk_turma for selected students com segurança atômica
+            // Remove apenas alunos que foram EXPLICITAMENTE retirados da turma, sem zerar a turma toda
+            if (isEditMode && turmaId) {
+                const { data: currentStudents } = await supabase
                     .from('users')
-                    .update({ fk_turma: null })
+                    .select('uuid')
                     .eq('fk_turma', turmaId);
+
+                const currentUuids = (currentStudents || []).map((u: any) => u.uuid);
+                const removedUuids = currentUuids.filter((uid: string) => !selectedStudents.includes(uid));
+
+                if (removedUuids.length > 0) {
+                    await supabase
+                        .from('users')
+                        .update({ fk_turma: null })
+                        .in('uuid', removedUuids);
+                }
             }
 
-            // Then, set this turma for all currently selected students
+            // Atribui a turma para todos os alunos selecionados
             if (selectedStudents.length > 0) {
                 const { error: userUpdateError } = await supabase
                     .from('users')
