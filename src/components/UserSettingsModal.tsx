@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Loader2, BookOpen, GraduationCap, CheckCircle2, User, ChevronRight, Search, Shield } from 'lucide-react';
+import { X, Loader2, BookOpen, GraduationCap, CheckCircle2, User, ChevronRight, Search, Shield, KeyRound, Copy, Mail, MessageCircle, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { SearchableSelect } from './SearchableSelect';
@@ -97,11 +97,22 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
     });
     const [loadingCep, setLoadingCep] = useState(false);
 
+    // [P0-ELTI-PASSWORD-RESET-STAFF] Estados de autonomia de senha para equipe escolar
+    const [sendingRecovery, setSendingRecovery] = useState(false);
+    const [generatingWhatsappLink, setGeneratingWhatsappLink] = useState(false);
+    const [recoveryStatus, setRecoveryStatus] = useState<{ type: 'success' | 'error'; message: string; link?: string } | null>(null);
+    const [copiedLoginEmail, setCopiedLoginEmail] = useState(false);
+    const [copiedRecoveryLink, setCopiedRecoveryLink] = useState(false);
+    const [copiedWhatsappMsg, setCopiedWhatsappMsg] = useState(false);
 
     useEffect(() => {
         if (isOpen && user) {
             setSelectedBookId(user.idbooks);
             setSelectedTurmaId(user.fk_turma);
+            setRecoveryStatus(null);
+            setCopiedLoginEmail(false);
+            setCopiedRecoveryLink(false);
+            setCopiedWhatsappMsg(false);
             fetchTurmas();
             fetchFullUserData();
         }
@@ -241,6 +252,171 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
     };
 
 
+    const getTargetPortalInfo = () => {
+        if (selectedRoles.includes('Student')) {
+            return { origin: 'https://eltiplus.vercel.app', appName: 'ELTI Plus' };
+        }
+        if (selectedRoles.includes('Teacher') || selectedRoles.includes('Supervisor') || selectedRoles.includes('Pedagogical Supervisor')) {
+            return { origin: 'https://eltipro.vercel.app', appName: 'ELTI Pro' };
+        }
+        const currentOrigin = window.location.origin.replace(/\/+$/, '');
+        return { origin: currentOrigin, appName: 'ELTI Secretaria' };
+    };
+
+    const handleCopyLoginEmail = async () => {
+        const cleanEmail = (formData.email || '').trim();
+        if (!cleanEmail) return;
+        try {
+            await navigator.clipboard.writeText(cleanEmail);
+            setCopiedLoginEmail(true);
+            setTimeout(() => setCopiedLoginEmail(false), 2000);
+        } catch (err) {
+            console.error('Erro ao copiar e-mail:', err);
+        }
+    };
+
+    const handleSendPasswordRecovery = async () => {
+        const cleanEmail = (formData.email || '').trim().toLowerCase();
+        if (!cleanEmail) {
+            setRecoveryStatus({
+                type: 'error',
+                message: 'Este usuário não possui e-mail de login cadastrado. Preencha na aba "Informações" e salve primeiro.'
+            });
+            return;
+        }
+
+        setSendingRecovery(true);
+        setRecoveryStatus(null);
+        const { origin, appName } = getTargetPortalInfo();
+
+        try {
+            let sentViaEdge = false;
+            let generatedLink: string | undefined;
+
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                const { data: edgeData, error: edgeError } = await supabase.functions.invoke('send-recovery-email', {
+                    headers: session?.access_token
+                        ? { Authorization: `Bearer ${session.access_token}` }
+                        : undefined,
+                    body: {
+                        email: cleanEmail,
+                        origin,
+                        appName,
+                        returnLink: true,
+                    },
+                });
+
+                if (edgeError) throw edgeError;
+                if (edgeData?.error) throw new Error(edgeData.error);
+                sentViaEdge = true;
+                if (edgeData?.recoveryLink) {
+                    generatedLink = edgeData.recoveryLink;
+                }
+            } catch (edgeErr) {
+                console.warn('[STAFF RECOVERY] Edge Function fallback para resetPasswordForEmail:', edgeErr);
+            }
+
+            if (!sentViaEdge) {
+                const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+                    redirectTo: origin,
+                });
+                if (error) throw error;
+            }
+
+            const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            setRecoveryStatus({
+                type: 'success',
+                message: `Link de recuperação enviado às ${nowStr} para ${cleanEmail} (${appName}).`,
+                link: generatedLink,
+            });
+        } catch (err: any) {
+            console.error('[STAFF RECOVERY] Erro:', err);
+            setRecoveryStatus({
+                type: 'error',
+                message: err?.message || 'Não foi possível enviar o e-mail de recuperação. Tente novamente em instantes.',
+            });
+        } finally {
+            setSendingRecovery(false);
+        }
+    };
+
+    const handleShareRecoveryWhatsApp = async () => {
+        const cleanEmail = (formData.email || '').trim().toLowerCase();
+        if (!cleanEmail) return;
+
+        const { origin, appName } = getTargetPortalInfo();
+        const firstName = (formData.nome || user?.nome || 'Aluno(a)').trim().split(' ')[0];
+
+        setGeneratingWhatsappLink(true);
+        setRecoveryStatus(null);
+
+        try {
+            let directLink = recoveryStatus?.link;
+
+            // Gera link oficial assinado pelo Supabase sem precisar disparar e-mail
+            if (!directLink) {
+                let { data: { session } } = await supabase.auth.getSession();
+                if (!session?.access_token || (session.expires_at && session.expires_at * 1000 < Date.now() + 60_000)) {
+                    const refreshed = await supabase.auth.refreshSession();
+                    if (refreshed.data.session) session = refreshed.data.session;
+                }
+                const { data: edgeData, error: edgeError } = await supabase.functions.invoke('send-recovery-email', {
+                    headers: session?.access_token
+                        ? { Authorization: `Bearer ${session.access_token}` }
+                        : undefined,
+                    body: {
+                        email: cleanEmail,
+                        origin,
+                        appName,
+                        returnLink: true,
+                        skipEmail: true,
+                    },
+                });
+                if (edgeError) {
+                    let detailedMsg = edgeError.message;
+                    try {
+                        const errBody = await (edgeError as any)?.context?.json?.();
+                        if (errBody?.error) detailedMsg = errBody.error;
+                    } catch {}
+                    throw new Error(detailedMsg);
+                }
+                if (edgeData?.error) throw new Error(edgeData.error);
+                if (!edgeData?.recoveryLink) {
+                    throw new Error('Não foi possível gerar o link direto de recuperação para este e-mail.');
+                }
+                directLink = edgeData.recoveryLink;
+            }
+
+            const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            setRecoveryStatus({
+                type: 'success',
+                message: `Link direto gerado às ${nowStr} (sem envio de e-mail) — pronto para o WhatsApp do aluno!`,
+                link: directLink,
+            });
+
+            const message = `Olá, ${firstName}! Segue seu link exclusivo para criar uma nova senha no *${appName}*:\n\n📧 *E-mail de login:* ${cleanEmail}\n🔑 *Clique aqui para alterar sua senha:*\n${directLink}\n\nQualquer dúvida, estamos à disposição na Secretaria do Colégio ELTI!`;
+
+            const digits = (formData.telefone || '').replace(/\D/g, '');
+            if (digits.length >= 10) {
+                const fullPhone = digits.startsWith('55') ? digits : `55${digits}`;
+                window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+            } else {
+                await navigator.clipboard.writeText(message);
+                setCopiedWhatsappMsg(true);
+                setTimeout(() => setCopiedWhatsappMsg(false), 3000);
+            }
+        } catch (err: any) {
+            console.error('[STAFF WHATSAPP LINK] Erro:', err);
+            setRecoveryStatus({
+                type: 'error',
+                message: err?.message || 'Erro ao gerar link de recuperação para o WhatsApp.',
+            });
+        } finally {
+            setGeneratingWhatsappLink(false);
+        }
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -363,6 +539,104 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
                                             );
                                         })}
                                     </div>
+                                </section>
+
+                                {/* [P0-ELTI-PASSWORD-RESET-STAFF] Acesso & Redefinição de Senha em 1 Clique */}
+                                <section className="bg-white rounded-[28px] p-6 border border-gray-100 shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3.5">
+                                            <div className="w-11 h-11 rounded-[18px] bg-amber-50 flex items-center justify-center text-amber-600 shadow-inner shrink-0">
+                                                <KeyRound className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-[#0E3A8C] uppercase tracking-[0.18em] text-xs">Acesso &amp; Recuperação de Senha</h4>
+                                                <p className="text-gray-400 text-[10px] font-bold">Confira o e-mail exato de login e envie recuperação em 1 clique</p>
+                                            </div>
+                                        </div>
+                                        <span className="px-3 py-1 rounded-full bg-blue-50 text-[#0E3A8C] text-[10px] font-black uppercase tracking-wider shrink-0">
+                                            {getTargetPortalInfo().appName}
+                                        </span>
+                                    </div>
+
+                                    <div className="bg-gray-50/90 rounded-2xl p-3.5 border border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 block mb-0.5">E-mail Exato de Login</span>
+                                            {formData.email ? (
+                                                <p className="font-mono text-sm font-bold text-[#0E3A8C] truncate" title={formData.email}>
+                                                    {formData.email}
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs font-bold text-amber-600">
+                                                    Nenhum e-mail cadastrado — informe na aba Informações
+                                                </p>
+                                            )}
+                                        </div>
+                                        {formData.email && (
+                                            <button
+                                                type="button"
+                                                onClick={handleCopyLoginEmail}
+                                                className="px-3.5 py-2 rounded-xl bg-white border border-gray-200 hover:border-[#0E3A8C]/30 text-[#0E3A8C] text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shrink-0 shadow-xs"
+                                            >
+                                                {copiedLoginEmail ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                                <span>{copiedLoginEmail ? 'Copiado!' : 'Copiar E-mail'}</span>
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row gap-2.5">
+                                        <button
+                                            type="button"
+                                            onClick={handleSendPasswordRecovery}
+                                            disabled={sendingRecovery || !formData.email}
+                                            className="flex-1 py-3 px-4 rounded-2xl bg-[#0E3A8C] hover:bg-[#0E3A8C]/90 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm"
+                                        >
+                                            {sendingRecovery ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
+                                            <span>{sendingRecovery ? 'Enviando...' : 'Enviar E-mail de Recuperação'}</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleShareRecoveryWhatsApp}
+                                            disabled={generatingWhatsappLink || !formData.email}
+                                            className="flex-1 py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm"
+                                        >
+                                            {generatingWhatsappLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                                            <span>
+                                                {generatingWhatsappLink
+                                                    ? 'Gerando Link...'
+                                                    : copiedWhatsappMsg
+                                                        ? 'Link Copiado p/ WhatsApp!'
+                                                        : (formData.telefone || '').replace(/\D/g, '').length >= 10
+                                                            ? 'Gerar Link p/ WhatsApp'
+                                                            : 'Gerar & Copiar p/ WhatsApp'}
+                                            </span>
+                                        </button>
+                                    </div>
+
+                                    {recoveryStatus && (
+                                        <div className={cn(
+                                            "p-3.5 rounded-2xl text-xs font-bold flex flex-col sm:flex-row sm:items-center justify-between gap-2 border",
+                                            recoveryStatus.type === 'success'
+                                                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                                : "bg-red-50 text-red-700 border-red-200"
+                                        )}>
+                                            <span>{recoveryStatus.message}</span>
+                                            {recoveryStatus.link && (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        await navigator.clipboard.writeText(recoveryStatus.link!);
+                                                        setCopiedRecoveryLink(true);
+                                                        setTimeout(() => setCopiedRecoveryLink(false), 2000);
+                                                    }}
+                                                    className="px-3 py-1.5 rounded-xl bg-white border border-emerald-300 text-emerald-800 text-[10px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1.5"
+                                                >
+                                                    {copiedRecoveryLink ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                                                    <span>{copiedRecoveryLink ? 'Link Copiado!' : 'Copiar Link Direto'}</span>
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </section>
                                 {activeTab === 'config' ? (
                                     <>
