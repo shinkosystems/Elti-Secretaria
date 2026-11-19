@@ -270,6 +270,50 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 }
             }
 
+            // [ELTI-BOOK-GUARD-01] Trava contra troca acidental de livro e divergência Nome x Livro
+            const originalBookId = isEditMode ? (turma?.fk_livro ?? null) : null;
+            const bookChanged = isEditMode && originalBookId !== fk_livro;
+            const oldBookName = books.find(b => b.id === originalBookId)?.nome || 'Sem livro';
+            const newBookName = books.find(b => b.id === fk_livro)?.nome || 'Sem livro';
+
+            if (bookChanged) {
+                const confirmedBookChange = window.confirm(
+                    `⚠️ ATENÇÃO: Você está alterando o LIVRO da turma "${nome}" de "${oldBookName}" para "${newBookName}".\n\n` +
+                    `Alterar o livro muda imediatamente quais provas e conteúdos aparecem para o professor e alunos.\n\n` +
+                    `Deseja realmente alterar o livro desta turma?`
+                );
+                if (!confirmedBookChange) {
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            const nomeUpper = nome.trim().toUpperCase();
+            let expectedBookId: number | null = null;
+            if (nomeUpper.includes('FRESHMAN')) expectedBookId = 1;
+            else if (nomeUpper.includes('SOPHOMORE')) expectedBookId = 2;
+            else if (nomeUpper.includes('JUNIOR')) expectedBookId = 3;
+            else if (nomeUpper.includes('SENIOR') || nomeUpper.includes('SÊNIOR')) expectedBookId = 4;
+
+            if (expectedBookId && fk_livro && fk_livro !== expectedBookId) {
+                const expectedBookName = books.find(b => b.id === expectedBookId)?.nome || `Livro #${expectedBookId}`;
+                const confirmedMismatch = window.confirm(
+                    `⚠️ DIVERGÊNCIA DETECTADA:\n\nO nome da turma ("${nome}") indica o livro "${expectedBookName}", mas o livro selecionado é "${newBookName}".\n\n` +
+                    `Isso pode impedir os alunos de receberem as provas corretas. Tem certeza que deseja salvar assim mesmo?`
+                );
+                if (!confirmedMismatch) {
+                    setLoading(false);
+                    return;
+                }
+            }
+
+            let shouldSyncStudentBooks = false;
+            if (bookChanged && fk_livro && selectedStudents.length > 0) {
+                shouldSyncStudentBooks = window.confirm(
+                    `Deseja também atualizar automaticamente o livro para "${newBookName}" no cadastro dos ${selectedStudents.length} aluno(s) desta turma para mantê-los sincronizados?`
+                );
+            }
+
             const payload = {
                 nome,
                 fk_colegio,
@@ -324,11 +368,15 @@ export function AddTurmaModal({ isOpen, onClose, turma, fk_colegio, onSuccess }:
                 }
             }
 
-            // Atribui a turma para todos os alunos selecionados
+            // Atribui a turma (e sincroniza o livro, se confirmado) para todos os alunos selecionados
             if (selectedStudents.length > 0) {
+                const studentUpdatePayload: any = { fk_turma: turmaId };
+                if (shouldSyncStudentBooks && fk_livro) {
+                    studentUpdatePayload.idbooks = fk_livro;
+                }
                 const { error: userUpdateError } = await supabase
                     .from('users')
-                    .update({ fk_turma: turmaId })
+                    .update(studentUpdatePayload)
                     .in('uuid', selectedStudents);
                 if (userUpdateError) throw userUpdateError;
             }
