@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Loader2, BookOpen, GraduationCap, CheckCircle2, User, ChevronRight, Search, Shield, KeyRound, Copy, Mail, MessageCircle, Check } from 'lucide-react';
+import { X, Loader2, BookOpen, GraduationCap, CheckCircle2, User, ChevronRight, Search, Shield, KeyRound, Copy, Mail, MessageCircle, Check, Lock, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { cn } from '../lib/utils';
 import { SearchableSelect } from './SearchableSelect';
@@ -104,6 +104,10 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
     const [copiedLoginEmail, setCopiedLoginEmail] = useState(false);
     const [copiedRecoveryLink, setCopiedRecoveryLink] = useState(false);
     const [copiedWhatsappMsg, setCopiedWhatsappMsg] = useState(false);
+    const [showDirectPasswordInput, setShowDirectPasswordInput] = useState(false);
+    const [directPasswordValue, setDirectPasswordValue] = useState('Elti@2026');
+    const [settingDirectPassword, setSettingDirectPassword] = useState(false);
+    const [directPasswordSuccess, setDirectPasswordSuccess] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen && user) {
@@ -417,6 +421,117 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
         }
     };
 
+    const handleApplyDirectPassword = async () => {
+        const cleanEmail = (formData.email || '').trim().toLowerCase();
+        const cleanPass = (directPasswordValue || '').trim();
+        if (!cleanEmail) {
+            alert('E-mail do aluno não informado.');
+            return;
+        }
+        if (cleanPass.length < 6) {
+            alert('A senha deve ter no mínimo 6 caracteres.');
+            return;
+        }
+
+        setSettingDirectPassword(true);
+        setRecoveryStatus(null);
+        setDirectPasswordSuccess(null);
+
+        try {
+            const { origin, appName } = getTargetPortalInfo();
+            const firstName = (formData.nome || user?.nome || 'Aluno(a)').trim().split(' ')[0];
+
+            let { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token || (session.expires_at && session.expires_at * 1000 < Date.now() + 60_000)) {
+                const refreshed = await supabase.auth.refreshSession();
+                if (refreshed.data.session) session = refreshed.data.session;
+            }
+
+            const { data: edgeData, error: edgeError } = await supabase.functions.invoke('send-recovery-email', {
+                headers: session?.access_token
+                    ? { Authorization: `Bearer ${session.access_token}` }
+                    : undefined,
+                body: {
+                    email: cleanEmail,
+                    origin,
+                    appName,
+                    returnLink: true,
+                    skipEmail: true,
+                },
+            });
+
+            if (edgeError) {
+                let detailedMsg = edgeError.message;
+                try {
+                    const errBody = await (edgeError as any)?.context?.json?.();
+                    if (errBody?.error) detailedMsg = errBody.error;
+                } catch {}
+                throw new Error(detailedMsg);
+            }
+            if (edgeData?.error) throw new Error(edgeData.error);
+            if (!edgeData?.recoveryLink) {
+                throw new Error('Não foi possível obter o token de redefinição para este aluno.');
+            }
+
+            const recoveryUrl = new URL(edgeData.recoveryLink);
+            const token = recoveryUrl.searchParams.get('token');
+            if (!token) throw new Error('Token de verificação não encontrado no link gerado.');
+
+            // @ts-ignore
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://qazjyzqptdcnuezllbpr.supabase.co';
+            // @ts-ignore
+            const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFhemp5enFwdGRjbnVlemxsYnByIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg1NDY4NTQsImV4cCI6MjA2NDEyMjg1NH0.H6v1HUH-LkHDH-WaaLQyN8GMeNLk0V27VJzHuXHin9M';
+            const { createClient } = await import('@supabase/supabase-js');
+            const tempClient = createClient(supabaseUrl, supabaseAnonKey, {
+                auth: { persistSession: false, autoRefreshToken: false }
+            });
+
+            const { error: verifyErr } = await tempClient.auth.verifyOtp({
+                token_hash: token,
+                type: 'recovery'
+            });
+            if (verifyErr) throw verifyErr;
+
+            const { error: updErr } = await tempClient.auth.updateUser({
+                password: cleanPass
+            });
+            if (updErr && (updErr as any)?.code !== 'same_password') {
+                throw updErr;
+            }
+
+            if (user?.id) {
+                await supabase.from('users').update({ senha_alterada: false }).eq('id', user.id);
+            }
+
+            const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            setDirectPasswordSuccess(cleanPass);
+            setRecoveryStatus({
+                type: 'success',
+                message: `Senha redefinida com sucesso às ${nowStr}! Nova senha: "${cleanPass}".`,
+            });
+
+            const message = `Olá, ${firstName}! Sua senha de acesso ao *${appName}* foi redefinida com sucesso pela Secretaria do Colégio ELTI:\n\n📧 *E-mail de login:* ${cleanEmail}\n🔑 *Sua Nova Senha:* ${cleanPass}\n🌐 *Acesse o aplicativo aqui:* ${origin}\n\nQualquer dúvida, estamos à disposição na Secretaria!`;
+
+            const digits = (formData.telefone || '').replace(/\D/g, '');
+            if (digits.length >= 10) {
+                const fullPhone = digits.startsWith('55') ? digits : `55${digits}`;
+                window.open(`https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+            } else {
+                await navigator.clipboard.writeText(message);
+                setCopiedWhatsappMsg(true);
+                setTimeout(() => setCopiedWhatsappMsg(false), 3000);
+            }
+        } catch (err: any) {
+            console.error('[STAFF DIRECT PASSWORD] Erro:', err);
+            setRecoveryStatus({
+                type: 'error',
+                message: err?.message || 'Erro ao redefinir a senha do aluno diretamente.',
+            });
+        } finally {
+            setSettingDirectPassword(false);
+        }
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -583,35 +698,92 @@ export function UserSettingsModal({ isOpen, onClose, user, fk_colegio, onSuccess
                                         )}
                                     </div>
 
-                                    <div className="flex flex-col sm:flex-row gap-2.5">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                                         <button
                                             type="button"
                                             onClick={handleSendPasswordRecovery}
                                             disabled={sendingRecovery || !formData.email}
-                                            className="flex-1 py-3 px-4 rounded-2xl bg-[#0E3A8C] hover:bg-[#0E3A8C]/90 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm"
+                                            className="py-3 px-3 rounded-2xl bg-[#0E3A8C] hover:bg-[#0E3A8C]/90 disabled:opacity-50 text-white text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm"
                                         >
                                             {sendingRecovery ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                                            <span>{sendingRecovery ? 'Enviando...' : 'Enviar E-mail de Recuperação'}</span>
+                                            <span>{sendingRecovery ? 'Enviando...' : 'E-mail'}</span>
                                         </button>
 
                                         <button
                                             type="button"
                                             onClick={handleShareRecoveryWhatsApp}
                                             disabled={generatingWhatsappLink || !formData.email}
-                                            className="flex-1 py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm"
+                                            className="py-3 px-3 rounded-2xl bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm"
                                         >
                                             {generatingWhatsappLink ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
                                             <span>
                                                 {generatingWhatsappLink
-                                                    ? 'Gerando Link...'
+                                                    ? 'Gerando...'
                                                     : copiedWhatsappMsg
-                                                        ? 'Link Copiado p/ WhatsApp!'
-                                                        : (formData.telefone || '').replace(/\D/g, '').length >= 10
-                                                            ? 'Gerar Link p/ WhatsApp'
-                                                            : 'Gerar & Copiar p/ WhatsApp'}
+                                                        ? 'Copiado!'
+                                                        : 'Link WhatsApp'}
                                             </span>
                                         </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowDirectPasswordInput(!showDirectPasswordInput)}
+                                            disabled={!formData.email}
+                                            className="py-3 px-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                                        >
+                                            <Lock className="w-4 h-4" />
+                                            <span>{showDirectPasswordInput ? 'Ocultar' : 'Definir Senha'}</span>
+                                        </button>
                                     </div>
+
+                                    {/* Painel Expansível de Definição Direta de Senha */}
+                                    {showDirectPasswordInput && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-3"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2 text-indigo-900 font-black text-xs uppercase tracking-wider">
+                                                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                                                    <span>Redefinição Direta (Sem depender de e-mail)</span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDirectPasswordValue(`Elti@${new Date().getFullYear()}`)}
+                                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shadow-xs"
+                                                >
+                                                    Usar Elti@{new Date().getFullYear()}
+                                                </button>
+                                            </div>
+
+                                            <p className="text-[11px] text-indigo-700/80 leading-relaxed font-medium">
+                                                Altera a senha no Supabase imediatamente e já abre o WhatsApp do aluno com as instruções de login prontas.
+                                            </p>
+
+                                            <div className="flex flex-col sm:flex-row gap-2">
+                                                <div className="relative flex-1">
+                                                    <input
+                                                        type="text"
+                                                        value={directPasswordValue}
+                                                        onChange={(e) => setDirectPasswordValue(e.target.value)}
+                                                        placeholder="Digite a nova senha (mín. 6 chars)"
+                                                        className="w-full px-4 py-2.5 bg-white rounded-xl border border-indigo-200 text-xs font-mono font-bold text-indigo-950 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                                    />
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleApplyDirectPassword}
+                                                    disabled={settingDirectPassword || directPasswordValue.length < 6}
+                                                    className="py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 shrink-0"
+                                                >
+                                                    {settingDirectPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                                    <span>{settingDirectPassword ? 'Aplicando...' : 'Aplicar Senha'}</span>
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )}
 
                                     {recoveryStatus && (
                                         <div className={cn(
